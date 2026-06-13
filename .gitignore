@@ -2,6 +2,13 @@
 #
 # Get latest from https://github.com/github/gitignore/blob/main/Unity.gitignore
 #
+
+# Locally-generated Korean TMP font. Sourced from a system font (AppleGothic, ~15 MB,
+# not redistributable) and regenerated per-machine by SOOM ▸ Setup ▸ 3. Build Breath UI.
+# Ship with a properly licensed font (e.g. Noto Sans KR, SIL OFL) instead.
+/[Aa]ssets/Fonts/
+/[Aa]ssets/Fonts.meta
+
 .utmp/
 /[Ll]ibrary/
 /[Tt]emp/
