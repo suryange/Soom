@@ -14,10 +14,13 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.InputSystem.XR;   // TrackedPoseDriver (Input System) for HMD head tracking
 using UnityEngine.InputSystem;
+using UnityEngine.UI;               // Image / HorizontalLayoutGroup / LayoutElement for rep icons
+using TMPro;                        // world-space text
 
 static class SoomSetup
 {
     const string SignalPath   = "Assets/Settings/BreathSignal.asset";
+    const string EventsPath   = "Assets/Settings/BreathEvents.asset";
     const string MaterialPath = "Assets/Settings/DustVignette.mat";
     const string NoisePath    = "Assets/dust_noise.png";
 
@@ -158,11 +161,13 @@ static class SoomSetup
         so.FindProperty("maxGroundDust").floatValue  = 0.6f;   // visible but not opaque in the storm
         so.ApplyModifiedPropertiesWithoutUndo();
 
+        var events = GetOrCreateEvents();
         var driverGo = GameObject.Find("ClarityDriver");
         if (driverGo == null) driverGo = new GameObject("ClarityDriver", typeof(ClarityPoCDriver));
         var driver = driverGo.GetComponent<ClarityPoCDriver>();
         var dso = new SerializedObject(driver);
         dso.FindProperty("signal").objectReferenceValue = signal;
+        dso.FindProperty("events").objectReferenceValue = events;
         dso.ApplyModifiedPropertiesWithoutUndo();
 
         // --- save -----------------------------------------------------------------
@@ -173,6 +178,100 @@ static class SoomSetup
         Debug.Log("[SOOM] Desert scene built & wired (ground + drifting surface sand + airborne haze " +
                   "+ particles + warm light/fog). Press Play, hold Up/Down arrows (or right thumbstick " +
                   "in headset) to breathe the sandstorm clear. Tune on SandstormFX ▸ SandstormController.");
+    }
+
+    // ---------------------------------------------------------------- UI build
+    [MenuItem("SOOM/Setup/3. Build Breath UI")]
+    static void BuildUI()
+    {
+        var signal = GetOrCreateSignal();
+        var events = GetOrCreateEvents();
+
+        // Korean-capable dynamic font; falls back to the TMP default (Latin-only) if unavailable.
+        var font = GetOrCreateKoreanFont() ?? TMP_Settings.defaultFontAsset;
+        if (font == null)
+            Debug.LogWarning("[SOOM] No usable TMP font. Import TMP Essential Resources " +
+                "(Window ▸ TextMeshPro) and/or drop a Korean .ttf in Assets/Fonts, then re-run.");
+
+        var cam = Camera.main; // worldCamera for the world-space canvases
+
+        // Single root that holds the whole breath UI. Destroy + recreate so re-running doesn't
+        // stack duplicate components (PopupSystem etc.) on the existing root.
+        var existing = GameObject.Find("SoomUI");
+        if (existing != null) Object.DestroyImmediate(existing);
+        var root = new GameObject("SoomUI");
+
+        // --- transient popup system (instruction lines + SUCCESS!) ------------------
+        var popupTemplate = MakeWorldCanvas("WorldPopupTemplate", root.transform, cam, new Vector2(900f, 320f));
+        var popupGroup    = popupTemplate.AddComponent<CanvasGroup>();
+        var popupLabel    = MakeLabel(popupTemplate.transform, "", 110f, Color.white, font);
+        var worldPopup    = popupTemplate.AddComponent<WorldPopup>();
+        Wire(worldPopup, w =>
+        {
+            w.FindProperty("label").objectReferenceValue = popupLabel;
+            w.FindProperty("group").objectReferenceValue = popupGroup;
+        });
+        popupTemplate.SetActive(false); // template; PopupSystem instantiates copies from it
+
+        var popupSys = root.AddComponent<PopupSystem>();
+        Wire(popupSys, p =>
+        {
+            p.FindProperty("events").objectReferenceValue      = events;
+            p.FindProperty("popupPrefab").objectReferenceValue = worldPopup;
+        });
+
+        // --- rep icons row (left → right) -------------------------------------------
+        var repCanvas = MakeWorldCanvas("RepIcons", root.transform, cam, new Vector2(900f, 220f));
+        AddComfort(repCanvas, vertical: 0.3f);  // a little above eye line
+        var layout = repCanvas.AddComponent<HorizontalLayoutGroup>();
+        layout.spacing = 40f;
+        layout.childAlignment = TextAnchor.MiddleCenter;
+        layout.childControlWidth = layout.childControlHeight = true;   // honour LayoutElement preferred sizes
+        layout.childForceExpandWidth = layout.childForceExpandHeight = false;
+
+        var knob = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/Knob.psd"); // round dot
+        const int repCount = 3; // matches ClarityPoCDriver.repsTotal default
+        var icons = new Image[repCount];
+        for (int i = 0; i < repCount; i++)
+        {
+            var dot = new GameObject($"Rep{i}", typeof(Image), typeof(LayoutElement));
+            dot.transform.SetParent(repCanvas.transform, false);
+            var img = dot.GetComponent<Image>();
+            img.sprite = knob;
+            img.color  = new Color(1f, 1f, 1f, 0.25f);
+            var le = dot.GetComponent<LayoutElement>();
+            le.preferredWidth = le.preferredHeight = 130f;
+            icons[i] = img;
+        }
+        var repIcons = repCanvas.AddComponent<BreathRepIcons>();
+        Wire(repIcons, r =>
+        {
+            r.FindProperty("events").objectReferenceValue = events;
+            var arr = r.FindProperty("icons");
+            arr.arraySize = repCount;
+            for (int i = 0; i < repCount; i++) arr.GetArrayElementAtIndex(i).objectReferenceValue = icons[i];
+        });
+
+        // --- persistent guide / feedback line ---------------------------------------
+        var guideCanvas = MakeWorldCanvas("GuidePanel", root.transform, cam, new Vector2(1100f, 160f));
+        AddComfort(guideCanvas, vertical: -0.4f); // below eye line
+        var guideLabel = MakeLabel(guideCanvas.transform, "", 64f, new Color(1f, 0.95f, 0.85f), font);
+        var guidePanel = guideCanvas.AddComponent<BreathGuidePanel>();
+        Wire(guidePanel, g =>
+        {
+            g.FindProperty("signal").objectReferenceValue = signal;
+            g.FindProperty("events").objectReferenceValue = events;
+            g.FindProperty("label").objectReferenceValue  = guideLabel;
+        });
+
+        var scene = SceneManager.GetActiveScene();
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+        Selection.activeObject = root;
+        Debug.Log("[SOOM] Breath UI built under 'SoomUI' (popups + rep icons + guide line) and wired to " +
+                  "BreathSignal/BreathEvents. Press Play; hold Up to inhale clear, release to exhale — " +
+                  "each completed breath fills a dot, 3 reps → SUCCESS!. If text is blank, import TMP " +
+                  "Essential Resources and re-run this.");
     }
 
     [MenuItem("SOOM/Setup/Open Read-Me · XR steps")]
@@ -199,6 +298,76 @@ static class SoomSetup
             AssetDatabase.SaveAssets();
         }
         return s;
+    }
+
+    static BreathEventsSO GetOrCreateEvents()
+    {
+        var e = AssetDatabase.LoadAssetAtPath<BreathEventsSO>(EventsPath);
+        if (e == null)
+        {
+            e = ScriptableObject.CreateInstance<BreathEventsSO>();
+            AssetDatabase.CreateAsset(e, EventsPath);
+            AssetDatabase.SaveAssets();
+        }
+        return e;
+    }
+
+    // The default TMP font (LiberationSans) has NO Hangul glyphs -> Korean shows as □ tofu boxes.
+    // Build a DYNAMIC TMP font asset from a Korean .ttf so glyphs are pulled on demand. For a PoC
+    // we borrow a system Korean font; for a shipped build swap in a properly licensed font
+    // (e.g. Noto Sans KR, SIL OFL) dropped into Assets/Fonts.
+    const string FontDir   = "Assets/Fonts";
+    const string KoreanTtf = "Assets/Fonts/AppleGothic.ttf";
+    const string KoreanTmp = "Assets/Fonts/AppleGothic SDF.asset";
+    static readonly string[] SystemKoreanFonts =
+    {
+        "/System/Library/Fonts/Supplemental/AppleGothic.ttf",
+    };
+
+    static TMP_FontAsset GetOrCreateKoreanFont()
+    {
+        var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(KoreanTmp);
+        if (existing != null) return existing;
+
+        if (!AssetDatabase.IsValidFolder(FontDir)) AssetDatabase.CreateFolder("Assets", "Fonts");
+
+        // Copy a Korean .ttf into the project if one isn't there yet.
+        if (AssetDatabase.LoadAssetAtPath<Font>(KoreanTtf) == null)
+        {
+            string src = null;
+            foreach (var p in SystemKoreanFonts) if (System.IO.File.Exists(p)) { src = p; break; }
+            if (src == null)
+            {
+                Debug.LogWarning("[SOOM] No Korean system font found. Drop a Korean .ttf at " +
+                                 KoreanTtf + " and re-run '3. Build Breath UI'.");
+                return null;
+            }
+            System.IO.File.Copy(src, KoreanTtf, true);
+            AssetDatabase.ImportAsset(KoreanTtf, ImportAssetOptions.ForceSynchronousImport);
+        }
+
+        var srcFont = AssetDatabase.LoadAssetAtPath<Font>(KoreanTtf);
+        if (srcFont == null) { Debug.LogError("[SOOM] Failed to import " + KoreanTtf); return null; }
+
+        var fontAsset = TMP_FontAsset.CreateFontAsset(srcFont); // dynamic atlas (default)
+        if (fontAsset == null) { Debug.LogError("[SOOM] TMP_FontAsset.CreateFontAsset failed."); return null; }
+
+        AssetDatabase.CreateAsset(fontAsset, KoreanTmp);
+        // The generated atlas texture + material must be stored as sub-assets or they vanish on reload.
+        if (fontAsset.atlasTextures != null && fontAsset.atlasTextures.Length > 0)
+        {
+            fontAsset.atlasTextures[0].name = "Atlas";
+            AssetDatabase.AddObjectToAsset(fontAsset.atlasTextures[0], fontAsset);
+        }
+        if (fontAsset.material != null)
+        {
+            fontAsset.material.name = "AppleGothic SDF Material";
+            AssetDatabase.AddObjectToAsset(fontAsset.material, fontAsset);
+        }
+        EditorUtility.SetDirty(fontAsset);
+        AssetDatabase.SaveAssets();
+        AssetDatabase.ImportAsset(KoreanTmp);
+        return fontAsset;
     }
 
     static Material GetOrCreateDustMaterial()
@@ -409,5 +578,52 @@ static class SoomSetup
         for (int i = 0; i < parent.childCount; i++)
             if (parent.GetChild(i).name == name) return parent.GetChild(i);
         return null;
+    }
+
+    // ---------------------------------------------------------------- UI helpers
+    // A world-space canvas scaled so 1 UI unit = 1 mm (localScale 0.001): a 900-wide rect is
+    // 0.9 m across, comfortably legible ~1.8 m from the eyes.
+    static GameObject MakeWorldCanvas(string name, Transform parent, Camera cam, Vector2 size)
+    {
+        var go = new GameObject(name, typeof(Canvas), typeof(CanvasScaler));
+        go.transform.SetParent(parent, false);
+        var canvas = go.GetComponent<Canvas>();
+        canvas.renderMode  = RenderMode.WorldSpace;
+        canvas.worldCamera = cam;
+        var rt = (RectTransform)go.transform;
+        rt.sizeDelta   = size;
+        rt.localScale  = Vector3.one * 0.001f;
+        return go;
+    }
+
+    static TextMeshProUGUI MakeLabel(Transform canvas, string text, float fontSize, Color color, TMP_FontAsset font)
+    {
+        var go = new GameObject("Label", typeof(TextMeshProUGUI));
+        go.transform.SetParent(canvas, false);
+        var t = go.GetComponent<TextMeshProUGUI>();
+        if (font) t.font = font;
+        t.text      = text;
+        t.fontSize  = fontSize;
+        t.color     = color;
+        t.alignment = TextAlignmentOptions.Center;
+        var rt = t.rectTransform;          // stretch to fill the canvas rect
+        rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+        rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+        return t;
+    }
+
+    static void AddComfort(GameObject canvas, float vertical)
+    {
+        var cb = canvas.AddComponent<ComfortBillboard>();
+        var so = new SerializedObject(cb);
+        so.FindProperty("vertical").floatValue = vertical;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    static void Wire(Object component, System.Action<SerializedObject> set)
+    {
+        var so = new SerializedObject(component);
+        set(so);
+        so.ApplyModifiedPropertiesWithoutUndo();
     }
 }
