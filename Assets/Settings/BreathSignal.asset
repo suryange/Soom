@@ -13,3 +13,4 @@ MonoBehaviour:
   m_Name: BreathSignal
   m_EditorClassIdentifier: Assembly-CSharp::BreathSignalSO
   Clarity: 0
+  Phase: 0
