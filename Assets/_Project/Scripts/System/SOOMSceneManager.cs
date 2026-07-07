@@ -20,6 +20,9 @@ public class SOOMSceneManager : MonoBehaviour
     // 싱글톤
     public static SOOMSceneManager Instance { get; private set; }
 
+    [SerializeField] private float fadeOutDuration = 0.5f;
+    [SerializeField] private float fadeInDuration = 0.5f;
+
     private void Awake()
     {
         // 씬이 넘어가도 매니저가 파괴되지 않도록 유지
@@ -48,7 +51,13 @@ public class SOOMSceneManager : MonoBehaviour
     {
         Debug.Log($"[SOOMSceneManager] '{sceneType}' 씬 로딩 시작...");
 
-        // TODO: 기획된 '카메라 페이드 아웃(Fade-Out)' 효과나 '로딩 터미널 UI'를 여기서 켭니다.
+        // 카메라 페이드 아웃(Fade-Out) 효과. ScreenFader가 없으면(폴백) 페이드 없이 바로 진행합니다.
+        if (ScreenFader.Instance != null)
+        {
+            bool faded = false;
+            ScreenFader.Instance.FadeOut(fadeOutDuration, () => faded = true);
+            yield return new WaitUntil(() => faded);
+        }
 
         // 비동기 로드 시작
         AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(sceneType.ToString());
@@ -66,6 +75,11 @@ public class SOOMSceneManager : MonoBehaviour
 
         Debug.Log($"[SOOMSceneManager] '{sceneType}' 씬 로딩 완료!");
 
-        // TODO: 기획된 '카메라 페이드 인(Fade-In)' 효과를 여기서 켭니다.
+        // 카메라 페이드 인(Fade-In) 효과. 새 씬의 카메라에 페이드 쿼드를 다시 부착한 뒤 페이드 인합니다.
+        if (ScreenFader.Instance != null)
+        {
+            ScreenFader.Instance.EnsureFadeQuad();
+            ScreenFader.Instance.FadeIn(fadeInDuration);
+        }
     }
 }
