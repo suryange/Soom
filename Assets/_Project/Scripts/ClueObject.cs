@@ -16,6 +16,10 @@ public class HologramMessage : MonoBehaviour, IInteractable
     public Transform spawnPoint;
     public Transform[] missionWaypoints;
 
+    [Header("World UI / Data (3.2, 3.3 배선)")]
+    public InteractableDataSO interactableData;
+    public InteractableWorldUI worldUI;
+
     private XRGrabInteractable grabInteractable;
     private bool isMyMissionActive = false;
 
@@ -43,18 +47,27 @@ public class HologramMessage : MonoBehaviour, IInteractable
     // ==========================================
     public void ShowUI()
     {
-        if (hologramUI != null && messageClose.activeSelf)
+        // 쪽지가 아직 열리지 않은 상태(messageClose 활성)일 때만 감지 UI를 띄운다
+        bool showDetectionPopup = messageClose != null && messageClose.activeSelf;
+
+        if (hologramUI != null && showDetectionPopup)
             hologramUI.SetActive(true);
+
+        if (worldUI != null && interactableData != null && showDetectionPopup)
+            worldUI.Show(interactableData);
     }
 
     public void HideUI()
     {
         if (hologramUI != null) hologramUI.SetActive(false);
+        if (worldUI != null) worldUI.Hide();
     }
 
     public void OnInteractBegin()
     {
-        // Raycast 등으로 상호작용이 시작될 때의 로직 (필요시 구현)
+        // 트리거 상호작용 시작 시 단서 텍스트(3.3 지시문 UI) 갱신
+        if (interactableData != null)
+            MissionGuideTextUI.Instance?.ShowMessage(interactableData.missionGuideText);
     }
 
     public void OnInteractEnd() { }
@@ -103,14 +116,23 @@ public class HologramMessage : MonoBehaviour, IInteractable
         // 이 쪽지를 통해 시작된 미션이 아닐 경우 무시
         if (!isMyMissionActive) return;
 
-        // 빛무리 생성 및 출발
-        GameObject lightInstance = Instantiate(guidingLightPrefab, spawnPoint.position, Quaternion.identity);
+        if (guidingLightPrefab == null)
+        {
+            Debug.LogWarning("[HologramMessage] guidingLightPrefab이 비어 있어 길잡이 등불을 생성할 수 없습니다.");
+            isMyMissionActive = false;
+            return;
+        }
+
+        // 빛무리 생성 및 출발 (spawnPoint 미할당 시 이 오브젝트 위치로 폴백)
+        Vector3 spawnPosition = spawnPoint != null ? spawnPoint.position : transform.position;
+        GameObject lightInstance = Instantiate(guidingLightPrefab, spawnPosition, Quaternion.identity);
+        lightInstance.SetActive(true); // guidingLightPrefab이 씬 내 비활성 템플릿이어도 인스턴스는 항상 켜서 스폰
         GuidingLightController lightController = lightInstance.GetComponent<GuidingLightController>();
 
         if (lightController != null)
         {
-            Transform playerTransform = GameObject.FindGameObjectWithTag("Player").transform;
-            // lightController.StartGuiding(missionWaypoints, playerTransform);
+            // GuidingLightController.StartGuiding은 Transform[] 하나만 받도록 되어 있어 시그니처를 맞춰 호출
+            lightController.StartGuiding(missionWaypoints);
         }
 
         // 미션 완료 플래그 초기화
