@@ -11,6 +11,15 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/_Project/Scenes/Breath_Test.unity
     guid: 9660913523647da449a83f0f66cba564
+  - enabled: 1
+    path: Assets/_Project/Scenes/Scene_01_Start.unity
+    guid: ad79a12655ba83c4b9fe2ce6c4cccf8d
+  - enabled: 1
+    path: Assets/_Project/Scenes/Scene_02_InGame_Inside.unity
+    guid: e66c0883277c9374386f0fc60a24f7a8
+  - enabled: 1
+    path: Assets/_Project/Scenes/Scene_03_InGame_Outside.unity
+    guid: a724b7865c192e54b801591d74e45166
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
     com.unity.xr.management.loader_settings: {fileID: 11400000, guid: e1eca848033d7544d88c88c728bd7d3a, type: 2}
