@@ -1,6 +1,10 @@
 fileFormatVersion: 2
+<<<<<<<< HEAD:Assets/_Project/Scripts/System.meta
 guid: 7f3be46cf529ded449a5ae21faa7079f
 folderAsset: yes
+========
+guid: e66c0883277c9374386f0fc60a24f7a8
+>>>>>>>> main:Assets/_Project/Scenes/Scene_02_InGame_Inside.unity.meta
 DefaultImporter:
   externalObjects: {}
   userData: 

@@ -1,6 +1,10 @@
 fileFormatVersion: 2
+<<<<<<<< HEAD:Assets/UI component.meta
 guid: 1abb163a439a50d4c9bb2f00af1edd60
 folderAsset: yes
+========
+guid: ad79a12655ba83c4b9fe2ce6c4cccf8d
+>>>>>>>> main:Assets/_Project/Scenes/Scene_01_Start.unity.meta
 DefaultImporter:
   externalObjects: {}
   userData: 
