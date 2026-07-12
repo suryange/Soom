@@ -388,6 +388,34 @@ PrefabInstance:
       propertyPath: m_LocalPosition.z
       value: 72.1
       objectReference: {fileID: 0}
+    - target: {fileID: 2080488271835296981, guid: 47532720ad8059c4d8c7c2a9eacb3b2e, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2080488271835296981, guid: 47532720ad8059c4d8c7c2a9eacb3b2e, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.891007
+      objectReference: {fileID: 0}
+    - target: {fileID: 2080488271835296981, guid: 47532720ad8059c4d8c7c2a9eacb3b2e, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2080488271835296981, guid: 47532720ad8059c4d8c7c2a9eacb3b2e, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: -0.453990
+      objectReference: {fileID: 0}
+    - target: {fileID: 2080488271835296981, guid: 47532720ad8059c4d8c7c2a9eacb3b2e, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2080488271835296981, guid: 47532720ad8059c4d8c7c2a9eacb3b2e, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 234
+      objectReference: {fileID: 0}
+    - target: {fileID: 2080488271835296981, guid: 47532720ad8059c4d8c7c2a9eacb3b2e, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 6734903886033892961, guid: 47532720ad8059c4d8c7c2a9eacb3b2e, type: 3}
       propertyPath: m_Height
       value: 2
@@ -808,6 +836,18 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 12228a7f9dd444e1f936fad713e39463, type: 3}
       propertyPath: m_Name
       value: fox_sample_2
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 12228a7f9dd444e1f936fad713e39463, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 12228a7f9dd444e1f936fad713e39463, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 12228a7f9dd444e1f936fad713e39463, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 3
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
