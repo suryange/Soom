@@ -12,8 +12,10 @@ using TMPro;
 /// 이 컨트롤러는 breathEvents의 OnBreathLoopCompleted/OnMissionSuccess를 구독해 현재 단계에 맞게
 /// 해석만 할 뿐, 호흡 계산 자체는 건드리지 않는다.
 ///
-/// 여우 모델/애니메이션이 아직 없으므로 Animator 관련 호출은 전부 null/상태 가드를 거친다 —
-/// 실제 모델이 들어오면 Animator 필드에 컨트롤러(모션 포함)를 연결하고 State 이름만 맞추면 된다.
+/// 실제 여우 모델(fox_sample_2.fbx)과 그로부터 생성한 Fox_Encounter 애니메이터 컨트롤러를 사용한다.
+/// 컨트롤러의 상태 이름은 의미 기준("Wary"/"Joy")으로 두고, 각 상태가 실제 FBX 클립
+/// (Action1_Alert / Action4_Standing_Happy)을 재생한다. 컨트롤러/상태가 아직 없어도
+/// Animator 관련 호출은 전부 null/HasState 가드를 거치므로 흐름 자체는 그대로 동작한다.
 /// </summary>
 public class FoxEncounterController : MonoBehaviour
 {
@@ -43,6 +45,9 @@ public class FoxEncounterController : MonoBehaviour
     [SerializeField] private Button actionButton;
     [SerializeField] private TMP_Text actionButtonLabel;
 
+    [Header("단계별 아이콘 (빌더가 phaseIcon Image 연결 — 스프라이트는 GlassUIKit에서 런타임 취득)")]
+    [SerializeField] private Image phaseIcon;
+
     [Header("공용 호흡 UI (BreathCircleUI 재사용)")]
     [SerializeField] private BreathCircleUI breathCircleUI;
 
@@ -52,10 +57,12 @@ public class FoxEncounterController : MonoBehaviour
     [Tooltip("BreathManager.targetLoopCount와 동일하게 맞춘다 (기본 3회 성공 = 3단계 감소)")]
     [SerializeField] private int membraneBreathSteps = 3;
 
-    [Header("여우 애니메이터 (옵션 — 모델/컨트롤러가 없으면 비워둔다)")]
+    [Header("여우 애니메이터 (Fox_Encounter 컨트롤러 — 빌더가 자동 생성/연결)")]
     [SerializeField] private Animator foxAnimator;
-    [SerializeField] private string waryStateName = "Sit_Growl";
-    [SerializeField] private string joyStateName = "Stand_Joy";
+    [Tooltip("경계 상태에서 재생할 상태 이름 (Action1_Alert 클립). 명세 5.2.2 'Sit_Growl'에 대응")]
+    [SerializeField] private string waryStateName = "Wary";
+    [Tooltip("동료 합류 시 재생할 상태 이름 (Action4_Standing_Happy 클립). 명세 5.6.1 'Stand_Joy'에 대응")]
+    [SerializeField] private string joyStateName = "Joy";
 
     [Header("동료 합류 (명세 5.6)")]
     [SerializeField] private FoxCompanionFollower companionFollower;
@@ -137,7 +144,8 @@ public class FoxEncounterController : MonoBehaviour
         string guide = data != null && !string.IsNullOrEmpty(data.missionGuideText)
             ? data.missionGuideText
             : DefaultFocusBreathGuide;
-        ShowInstructionAndAction(guide, "호흡으로 마음 들여다보기");
+        SetPhaseIcon(GlassUIKit.IconBreath);
+        ShowInstructionAndAction(guide, "호흡 시작");
     }
 
     /// <summary>명세 5.3 — 호흡 콘텐츠 D 시작 (집중).</summary>
@@ -164,7 +172,8 @@ public class FoxEncounterController : MonoBehaviour
         if (membraneObject != null) membraneObject.SetActive(true);
         SetMembraneAlpha(1f);
 
-        ShowInstructionAndAction(RevealedInstruction, "불안의 막 제거하기");
+        SetPhaseIcon(GlassUIKit.IconCheck);
+        ShowInstructionAndAction(RevealedInstruction, "불안의 막 제거");
     }
 
     /// <summary>명세 5.5 — 호흡 콘텐츠 E 시작 (불안의 막 제거).</summary>
@@ -192,6 +201,7 @@ public class FoxEncounterController : MonoBehaviour
         if (membraneObject != null) Destroy(membraneObject);
 
         // 5.6 전용 지시문 문단은 없으므로 액션 버튼("동료 되기")만 노출한다.
+        SetPhaseIcon(GlassUIKit.IconHeart);
         ShowInstructionAndAction(string.Empty, "동료 되기");
     }
 
@@ -275,6 +285,14 @@ public class FoxEncounterController : MonoBehaviour
     private void HideActionButton()
     {
         if (actionButtonRoot != null) actionButtonRoot.SetActive(false);
+    }
+
+    /// <summary>현재 단계 아이콘 교체 (phaseIcon/스프라이트가 없으면 조용히 무시).</summary>
+    private void SetPhaseIcon(Sprite sprite)
+    {
+        if (phaseIcon == null) return;
+        if (sprite != null) phaseIcon.sprite = sprite;
+        phaseIcon.gameObject.SetActive(phaseIcon.sprite != null);
     }
 
     // ========================================================
