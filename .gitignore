@@ -128,3 +128,7 @@ ignore.conf
 # Local scene recovery backups
 /[Aa]ssets/_Recovery/
 /[Aa]ssets/_Recovery.meta
+
+# ThreeD/model importer cache
+*.tdc
+TDImportCache/
