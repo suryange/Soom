@@ -40,13 +40,27 @@ public class BreathCircleUI : MonoBehaviour
     [SerializeField] CanvasGroup group;
     [SerializeField] float fadeDuration = 0.3f;
 
+    [Header("XR display")]
+    [SerializeField] bool followMainCamera = true;
+    [SerializeField] Vector3 cameraLocalPosition = new Vector3(0f, -0.08f, 0.75f);
+
     float _scaleVel;
-    float _cachedBreathValue;
+    [Header("Runtime diagnostics (Read Only)")]
+    [SerializeField] bool _eventChannelSubscribed;
+    [SerializeField] float _cachedBreathValue;
+    [SerializeField] int _receivedLoopCount;
+
     int _slotsFilled;
     Vector3 _beadHomeLocalPos;
     Coroutine _travelRoutine;
     Coroutine _pulseRoutine;
     Coroutine _fadeRoutine;
+    bool _visibleRequested;
+    int _observedBreathValueVersion = -1;
+    int _observedLoopVersion = -1;
+
+    public bool IsVisibilityRequested => _visibleRequested;
+    public bool IsEventChannelSubscribed => _eventChannelSubscribed;
 
     void Awake()
     {
@@ -93,6 +107,21 @@ public class BreathCircleUI : MonoBehaviour
             events.OnBreathValueNormalized += OnBreathValue;
             events.OnBreathLoopCompleted += OnLoopCompleted;
             events.OnMissionSuccess += OnMissionSuccess;
+            _eventChannelSubscribed = true;
+
+            // UI가 비활성 상태였던 동안 발행된 최신 값을 즉시 복구한다.
+            _observedBreathValueVersion = events.BreathValueVersion;
+            _observedLoopVersion = events.LoopVersion;
+            _cachedBreathValue = events.CurrentBreathValue;
+
+            Debug.Log(
+                $"[BreathCircleUI] 이벤트 채널 연결 완료. Channel={events.name}, " +
+                $"Value={_cachedBreathValue:0.00}, Bead={(bead ? bead.name : "NULL")}", this);
+        }
+        else
+        {
+            _eventChannelSubscribed = false;
+            Debug.LogError("[BreathCircleUI] BreathEventsChannel 참조가 없습니다.", this);
         }
     }
 
@@ -104,15 +133,28 @@ public class BreathCircleUI : MonoBehaviour
             events.OnBreathLoopCompleted -= OnLoopCompleted;
             events.OnMissionSuccess -= OnMissionSuccess;
         }
+
+        _eventChannelSubscribed = false;
+
+        // 비활성화되면 Unity가 Coroutine을 중단하므로 다음 세션을 위해 캐시도 비운다.
+        _travelRoutine = null;
+        _pulseRoutine = null;
+        _fadeRoutine = null;
     }
 
     void OnBreathValue(float value)
     {
         _cachedBreathValue = value;
+        if (events) _observedBreathValueVersion = events.BreathValueVersion;
     }
 
     void Update()
     {
+        if (_visibleRequested)
+            UpdateCameraPlacement();
+
+        SyncEventChannelSnapshot();
+
         if (!bead) return;
         // Travel/pulse coroutines own the bead's scale+position while they run; don't fight them.
         if (_travelRoutine != null || _pulseRoutine != null) return;
@@ -124,10 +166,42 @@ public class BreathCircleUI : MonoBehaviour
 
     void OnLoopCompleted(int loopCount)
     {
-        int i = _slotsFilled;
-        if (slotFills == null || i < 0 || i >= slotFills.Length) return;
+        _receivedLoopCount = loopCount;
+        if (events) _observedLoopVersion = events.LoopVersion;
+
+        if (slotFills == null || slotFills.Length == 0) return;
+
+        int i = Mathf.Clamp(loopCount - 1, 0, slotFills.Length - 1);
+
+        // 이벤트가 연출 시간보다 빠르게 와도 이전 완료 슬롯은 누락하지 않는다.
+        for (int completedIndex = 0; completedIndex < i; completedIndex++)
+        {
+            if (slotFills[completedIndex])
+                slotFills[completedIndex].enabled = true;
+        }
+        _slotsFilled = Mathf.Max(_slotsFilled, i);
+
         if (_travelRoutine != null) StopCoroutine(_travelRoutine);
         _travelRoutine = StartCoroutine(TravelToSlot(i));
+        Debug.Log($"[BreathCircleUI] 호흡 UI {loopCount}회차 갱신.", this);
+    }
+
+    void SyncEventChannelSnapshot()
+    {
+        if (!events) return;
+
+        if (_observedBreathValueVersion != events.BreathValueVersion)
+        {
+            _observedBreathValueVersion = events.BreathValueVersion;
+            _cachedBreathValue = events.CurrentBreathValue;
+        }
+
+        if (_observedLoopVersion != events.LoopVersion)
+        {
+            _observedLoopVersion = events.LoopVersion;
+            if (events.CurrentLoopCount > 0)
+                OnLoopCompleted(events.CurrentLoopCount);
+        }
     }
 
     void OnMissionSuccess()
@@ -161,7 +235,7 @@ public class BreathCircleUI : MonoBehaviour
         beadRt.localScale = startScale;
 
         slotFills[slotIndex].enabled = true;
-        _slotsFilled = Mathf.Min(_slotsFilled + 1, slotFills.Length);
+        _slotsFilled = Mathf.Max(_slotsFilled, Mathf.Min(slotIndex + 1, slotFills.Length));
         _travelRoutine = null;
     }
 
@@ -184,6 +258,11 @@ public class BreathCircleUI : MonoBehaviour
     /// <summary>Fade the whole UI in and reset the slots for a fresh session.</summary>
     public void Show()
     {
+        if (_visibleRequested && gameObject.activeInHierarchy)
+            return;
+
+        _visibleRequested = true;
+        EnsureRenderConfiguration();
         ResetSlots();
         gameObject.SetActive(true);
         Fade(1f);
@@ -191,13 +270,51 @@ public class BreathCircleUI : MonoBehaviour
 
     public void Hide()
     {
+        _visibleRequested = false;
         if (!gameObject.activeInHierarchy) return; // already hidden; can't run a fade coroutine
         Fade(0f);
+    }
+
+    void EnsureRenderConfiguration()
+    {
+        if (!group) group = GetComponent<CanvasGroup>();
+
+        Canvas canvas = GetComponent<Canvas>();
+        if (canvas)
+        {
+            canvas.enabled = true;
+            if (canvas.renderMode != RenderMode.ScreenSpaceOverlay)
+            {
+                canvas.worldCamera = Camera.main;
+                canvas.overrideSorting = true;
+                canvas.sortingOrder = 100;
+            }
+        }
+
+        UpdateCameraPlacement();
+        EnsureSprites();
+    }
+
+    void UpdateCameraPlacement()
+    {
+        if (!followMainCamera) return;
+
+        Camera camera = Camera.main;
+        if (!camera) return;
+
+        // SoomUI 아래 공용 World Space Canvas를 유지하면서 HMD 앞에 고정한다.
+        transform.position = camera.transform.TransformPoint(cameraLocalPosition);
+        transform.rotation = camera.transform.rotation;
+
+        FaceCamera faceCamera = GetComponent<FaceCamera>();
+        if (faceCamera && faceCamera.enabled)
+            faceCamera.enabled = false;
     }
 
     void ResetSlots()
     {
         _slotsFilled = 0;
+        _receivedLoopCount = 0;
         if (slotFills != null)
             foreach (var fill in slotFills)
                 if (fill) fill.enabled = false;
@@ -210,6 +327,12 @@ public class BreathCircleUI : MonoBehaviour
 
     void Fade(float target)
     {
+        if (!group)
+        {
+            Debug.LogError("[BreathCircleUI] CanvasGroup이 없어 UI 페이드를 실행할 수 없습니다.", this);
+            return;
+        }
+
         if (_fadeRoutine != null) StopCoroutine(_fadeRoutine);
         _fadeRoutine = StartCoroutine(FadeTo(target));
     }

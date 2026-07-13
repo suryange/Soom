@@ -1,5 +1,9 @@
 using UnityEngine;
 
+/// <summary>
+/// 현재 Scene 03 호흡 입력 Provider.
+/// 실제 호흡/마이크 센서가 아니라 좌우 컨트롤러 중 더 크게 기울어진 쪽의 회전 변화량을 사용한다.
+/// </summary>
 public class BreathManager : MonoBehaviour
 {
     [Header("Event Channels (SO)")]
@@ -11,129 +15,275 @@ public class BreathManager : MonoBehaviour
 
     [Header("Settings")]
     public int targetLoopCount = 3;
-    public float maxBreathAngle = 30f; // 최대 들숨/날숨 각도 변화
+    public float maxBreathAngle = 30f;
 
     [Header("Thresholds")]
-    public float inhaleThreshold = 0.7f;
-    public float exhaleThreshold = 0.3f;
+    [Range(0f, 1f)] public float inhaleThreshold = 0.7f;
+    [Range(0f, 1f)] public float exhaleThreshold = 0.3f;
+    [SerializeField, Min(0f)] private float minimumPhaseDuration = 0.15f;
 
-    private bool isMeasuring = false;
+    [Header("Runtime Diagnostics (Read Only)")]
+    [SerializeField] private bool isMeasuring;
+    [SerializeField] private bool isStateSubscribed;
+    [SerializeField] private int breathingStateEnterCount;
+    [SerializeField] private int measurementSessionCount;
+    [SerializeField] private int currentLoopCount;
+    [SerializeField] private float leftAngleDelta;
+    [SerializeField] private float rightAngleDelta;
+    [SerializeField] private float activeInputAngle;
+    [SerializeField] private float currentBreathValue;
+
     private Quaternion leftZeroRotation;
     private Quaternion rightZeroRotation;
+    private float phaseChangedAt;
+    private bool dependencyErrorReported;
 
-    private int currentLoopCount = 0;
-    private float currentBreathValue = 0f;
-
-    // 호흡 판별을 위한 현재 단계 (들숨 대기 / 날숨 대기)
-    private enum BreathPhase { WaitingForInhale, WaitingForExhale }
-    private BreathPhase currentPhase = BreathPhase.WaitingForInhale;
-    private void Start()
+    private enum BreathPhase
     {
-        PlayerStateManager.Instance.OnStateEnter += HandleStateEnter;
-        PlayerStateManager.Instance.OnStateExit += HandleStateExit;
+        WaitingForInhale,
+        WaitingForExhale
     }
 
-    private void OnDestroy()
+    [SerializeField] private BreathPhase currentPhase = BreathPhase.WaitingForInhale;
+
+    private void OnEnable()
     {
+        TrySubscribeStateManager();
+    }
+
+    private void Start()
+    {
+        TrySubscribeStateManager();
+        SyncCurrentState();
+    }
+
+    private void OnDisable()
+    {
+        UnsubscribeStateManager();
+        StopMeasurement();
+    }
+
+    private void TrySubscribeStateManager()
+    {
+        if (isStateSubscribed || PlayerStateManager.Instance == null)
+            return;
+
+        PlayerStateManager.Instance.OnStateEnter += HandleStateEnter;
+        PlayerStateManager.Instance.OnStateExit += HandleStateExit;
+        isStateSubscribed = true;
+    }
+
+    private void UnsubscribeStateManager()
+    {
+        if (!isStateSubscribed)
+            return;
+
         if (PlayerStateManager.Instance != null)
         {
             PlayerStateManager.Instance.OnStateEnter -= HandleStateEnter;
             PlayerStateManager.Instance.OnStateExit -= HandleStateExit;
         }
+
+        isStateSubscribed = false;
     }
 
-    private void HandleStateEnter(PlayerState state)
+    private void SyncCurrentState()
     {
-        if (state == PlayerState.BreathingActive)
+        if (PlayerStateManager.Instance != null &&
+            PlayerStateManager.Instance.CurrentState == PlayerState.BreathingActive &&
+            !isMeasuring)
         {
             StartCalibrationAndMeasurement();
         }
     }
 
+    private void HandleStateEnter(PlayerState state)
+    {
+        if (state != PlayerState.BreathingActive)
+            return;
+
+        breathingStateEnterCount++;
+        StartCalibrationAndMeasurement();
+    }
+
     private void HandleStateExit(PlayerState state)
     {
         if (state == PlayerState.BreathingActive)
-        {
             StopMeasurement();
-        }
     }
 
     private void StartCalibrationAndMeasurement()
     {
-        // 1. 0도 기준 / 캘리브레이션 (현재 자세)
+        if (isMeasuring)
+        {
+            Debug.LogWarning("[BreathManager] 중복 측정 시작 요청을 무시합니다.");
+            return;
+        }
+
+        if (!ValidateAndResolveDependencies())
+            return;
+
         leftZeroRotation = leftController.localRotation;
         rightZeroRotation = rightController.localRotation;
 
         currentLoopCount = 0;
+        leftAngleDelta = 0f;
+        rightAngleDelta = 0f;
+        activeInputAngle = 0f;
         currentBreathValue = 0f;
-        currentPhase = BreathPhase.WaitingForInhale; // 시작 시 들숨 대기 상태로 초기화
+        currentPhase = BreathPhase.WaitingForInhale;
+        phaseChangedAt = Time.unscaledTime;
+        dependencyErrorReported = false;
         isMeasuring = true;
+        measurementSessionCount++;
 
-        Debug.Log("0도 기준 완료: 양쪽 컨트롤러 캘리브레이션 됨");
+        breathEventsChannel.RaiseBreathValue(0f);
+        Debug.Log(
+            $"[BreathManager] 측정 세션 #{measurementSessionCount} 시작. " +
+            $"State={PlayerStateManager.Instance.CurrentState}, Active={isActiveAndEnabled}, " +
+            $"Left={leftController.name}, Right={rightController.name}, " +
+            $"Inhale={inhaleThreshold:0.00}({maxBreathAngle * inhaleThreshold:0.#}°), " +
+            $"Exhale={exhaleThreshold:0.00}({maxBreathAngle * exhaleThreshold:0.#}°)");
+    }
+
+    private bool ValidateAndResolveDependencies()
+    {
+        if (leftController == null)
+            leftController = FindSceneTransform("Left Controller");
+        if (rightController == null)
+            rightController = FindSceneTransform("Right Controller");
+
+        if (breathEventsChannel == null)
+        {
+            Debug.LogError("[BreathManager] BreathEventsChannel 참조가 없어 측정을 시작할 수 없습니다.");
+            return false;
+        }
+
+        if (leftController == null || rightController == null)
+        {
+            Debug.LogError(
+                $"[BreathManager] Controller 참조가 없어 측정을 시작할 수 없습니다. " +
+                $"Left={(leftController != null ? leftController.name : "NULL")}, " +
+                $"Right={(rightController != null ? rightController.name : "NULL")}");
+            return false;
+        }
+
+        if (maxBreathAngle <= 0f || exhaleThreshold >= inhaleThreshold)
+        {
+            Debug.LogError(
+                $"[BreathManager] 임계값 설정이 올바르지 않습니다. " +
+                $"MaxAngle={maxBreathAngle}, Inhale={inhaleThreshold}, Exhale={exhaleThreshold}");
+            return false;
+        }
+
+        targetLoopCount = Mathf.Max(1, targetLoopCount);
+        return true;
     }
 
     private void StopMeasurement()
     {
+        bool wasMeasuring = isMeasuring;
         isMeasuring = false;
         currentLoopCount = 0;
+        leftAngleDelta = 0f;
+        rightAngleDelta = 0f;
+        activeInputAngle = 0f;
         currentBreathValue = 0f;
+        currentPhase = BreathPhase.WaitingForInhale;
 
-        if (breathEventsChannel != null) breathEventsChannel.RaiseBreathValue(0f);
+        if (breathEventsChannel != null)
+            breathEventsChannel.RaiseBreathValue(0f);
+
+        if (wasMeasuring)
+            Debug.Log("[BreathManager] 측정 세션 종료.");
     }
 
     private void Update()
     {
-        if (!isMeasuring || leftController == null || rightController == null || breathEventsChannel == null) return;
+        if (!isStateSubscribed)
+        {
+            TrySubscribeStateManager();
+            if (isStateSubscribed)
+                SyncCurrentState();
+        }
 
-        // 2. 호흡 정도를 각도 차이로 계산하고 정규화
-        // TODO: 추후 이 부분을 센서값 기반으로 정교화하거나 ML 입력값으로 대체
-        float leftDelta = Quaternion.Angle(leftZeroRotation, leftController.localRotation); // 왼쪽 각도 변화량 계산
-        float rightDelta = Quaternion.Angle(rightZeroRotation, rightController.localRotation);
-        float avgDeltaAngle = (leftDelta + rightDelta) / 2f;
+        if (!isMeasuring)
+            return;
 
-        currentBreathValue = Mathf.Clamp01(avgDeltaAngle / maxBreathAngle); // 0.0 ~ 1.0 사이로 정규화
-        // Debug.Log(currentBreathValue);
+        if (leftController == null || rightController == null || breathEventsChannel == null)
+        {
+            if (!dependencyErrorReported)
+            {
+                dependencyErrorReported = true;
+                Debug.LogError("[BreathManager] 측정 중 필수 참조가 사라져 세션을 중단합니다.");
+            }
+            StopMeasurement();
+            return;
+        }
 
-        // BreathEventsSO에 호흡 정규화 값(0.0 ~ 1.0)을 실시간 전송
+        leftAngleDelta = Quaternion.Angle(leftZeroRotation, leftController.localRotation);
+        rightAngleDelta = Quaternion.Angle(rightZeroRotation, rightController.localRotation);
+
+        // 양손 평균은 한쪽만 조작할 때 두 배 각도를 요구했다. Simulator/실기기 모두
+        // 어느 한 컨트롤러든 의도적으로 기울이면 입력할 수 있도록 큰 쪽을 사용한다.
+        activeInputAngle = Mathf.Max(leftAngleDelta, rightAngleDelta);
+        currentBreathValue = Mathf.Clamp01(activeInputAngle / maxBreathAngle);
+
         breathEventsChannel.RaiseBreathValue(currentBreathValue);
-
-        // 3. 호흡 루프 판별 로직 호출
         CheckBreathLoop(currentBreathValue);
     }
 
-    /// 호흡 단계 (들숨 / 날숨) 판별 함수
     private void CheckBreathLoop(float normalizedValue)
     {
+        if (Time.unscaledTime - phaseChangedAt < minimumPhaseDuration)
+            return;
+
         if (currentPhase == BreathPhase.WaitingForInhale)
         {
-            // 들숨 상태에서 값이 inhaleThreshold를 넘어갔을 때
-            if (normalizedValue >= inhaleThreshold)
-            {
-                currentPhase = BreathPhase.WaitingForExhale;
-                Debug.Log("들숨 감지");
-            }
+            if (normalizedValue < inhaleThreshold)
+                return;
+
+            currentPhase = BreathPhase.WaitingForExhale;
+            phaseChangedAt = Time.unscaledTime;
+            Debug.Log(
+                $"[BreathManager] 들숨 감지. Value={normalizedValue:0.00}, " +
+                $"Left={leftAngleDelta:0.#}°, Right={rightAngleDelta:0.#}°");
+            return;
         }
-        else if (currentPhase == BreathPhase.WaitingForExhale)
+
+        if (normalizedValue > exhaleThreshold)
+            return;
+
+        currentPhase = BreathPhase.WaitingForInhale;
+        phaseChangedAt = Time.unscaledTime;
+        currentLoopCount++;
+
+        Debug.Log($"[BreathManager] 호흡 {currentLoopCount}/{targetLoopCount}회 성공.");
+        breathEventsChannel.RaiseLoopCompleted(currentLoopCount);
+
+        if (currentLoopCount < targetLoopCount)
+            return;
+
+        isMeasuring = false;
+        Debug.Log("[BreathManager] 목표 횟수 완료. MissionSuccess를 한 번 방송합니다.");
+        breathEventsChannel.RaiseMissionSuccess();
+
+        if (PlayerStateManager.Instance != null)
+            PlayerStateManager.Instance.CompleteBreathingMission();
+        else
+            Debug.LogError("[BreathManager] 완료 시 PlayerStateManager가 없어 Idle로 복귀하지 못했습니다.");
+    }
+
+    private static Transform FindSceneTransform(string objectName)
+    {
+        Transform[] transforms = FindObjectsByType<Transform>(
+            FindObjectsInactive.Include, FindObjectsSortMode.None);
+        foreach (Transform candidate in transforms)
         {
-            // 날숨 상태에서 값이 다시 exhaleThreshold 아래로 내려갔을 때
-            if (normalizedValue <= exhaleThreshold)
-            {
-                currentPhase = BreathPhase.WaitingForInhale;
-                currentLoopCount++;
-
-                Debug.Log($"호흡 {currentLoopCount}회 성공");
-                breathEventsChannel.RaiseLoopCompleted(currentLoopCount); // 횟수 증가 방송
-
-                // 3회 달성 시 종료
-                if (currentLoopCount >= targetLoopCount)
-                {
-                    isMeasuring = false;
-                    breathEventsChannel.RaiseMissionSuccess(); // 미션 성공 방송
-
-                    // 상태 머신 복귀 요청
-                    PlayerStateManager.Instance.CompleteBreathingMission();
-                }
-            }
+            if (candidate != null && candidate.name == objectName && candidate.gameObject.scene.IsValid())
+                return candidate;
         }
+
+        return null;
     }
 }

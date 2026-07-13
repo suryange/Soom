@@ -9,7 +9,8 @@
 //   - 감지 UI(InteractableWorldUI), 호흡 UI(BreathCircleUI), 지시문 UI(MissionGuideTextUI)
 //   - 웨이포인트 경로(빈 Transform 5개), 길잡이 등불 템플릿, 트리거 입력 브리지, 씬 부트스트랩
 //
-// 이 스크립트는 씬 파일을 직접 커밋하지 않는다 — 실행 후 사람이 Unity에서 씬을 저장해야 한다.
+// 배선과 검증이 모두 끝나면 현재 씬을 저장한다.
+using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -24,6 +25,7 @@ internal static class Scene03OutsideWiringBuilder
 
     const string InteractablesFolder = "Assets/_Project/Resources/Interactables";
     const string UnknownDeviceAssetPath = InteractablesFolder + "/UnknownDevice.asset";
+    const string GuidingLightPrefabPath = "Assets/PowerUp/Prefabs/PowerUpContainerYellowDollar.prefab";
 
     [MenuItem("SOOM/Build Scene03 Outside Wiring")]
     public static void Build()
@@ -54,9 +56,12 @@ internal static class Scene03OutsideWiringBuilder
         HologramMessage hologram = EnsureHologramMessage(clue);
         InteractableWorldUI worldUI = BuildDetectionUI(clue.transform, cam);
         Transform[] waypoints = BuildWaypoints(clue.transform);
-        GameObject guidingLightTemplate = BuildGuidingLightTemplate();
+        GameObject guidingLightTemplate = AssetDatabase.LoadAssetAtPath<GameObject>(GuidingLightPrefabPath);
+        if (guidingLightTemplate == null)
+            guidingLightTemplate = BuildGuidingLightTemplate();
         Transform spawnPoint = EnsureSpawnPoint(clue.transform);
         WireHologram(hologram, clue, data, worldUI, waypoints, guidingLightTemplate, spawnPoint, events);
+        Scene03GrabInteractionSetup.Setup(activeScene);
 
         BreathCircleUI breathCircleUI = BuildBreathCircleUI(cam, events);
         BuildMissionGuideTextUI(cam);
@@ -65,9 +70,10 @@ internal static class Scene03OutsideWiringBuilder
         BuildBootstrap();
 
         EditorSceneManager.MarkSceneDirty(activeScene);
+        EditorSceneManager.SaveScene(activeScene);
         Selection.activeGameObject = clue;
 
-        Debug.Log("[SOOM] Scene03 Outside 배선을 완료했습니다. Ctrl/Cmd+S로 씬을 저장해주세요.\n" +
+        Debug.Log("[SOOM] Scene03 Outside 배선 및 Scene 저장을 완료했습니다.\n" +
             "남은 수동 단계: TriggerInteractionInputBridge.triggerAction에 XRI 트리거 액션 연결, " +
             "웨이포인트 위치를 실제 오아시스 경로로 재배치, 등불/디텍션 UI 아트 교체.");
     }
@@ -198,21 +204,36 @@ internal static class Scene03OutsideWiringBuilder
     // ------------------------------------------------------------ 호흡 UI (3.4)
     static BreathCircleUI BuildBreathCircleUI(Camera cam, BreathEventsSO events)
     {
-        Transform parent = cam != null ? cam.transform : GetOrCreateUiRoot().transform;
+        BreathCircleUI shared = Object.FindObjectsByType<BreathCircleUI>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None)
+            .FirstOrDefault(circle =>
+                circle != null &&
+                circle.gameObject.name == "BreathCircle" &&
+                circle.transform.parent != null &&
+                circle.transform.parent.name == "SoomUI");
 
-        var existing = FindChildByName(parent, "BreathCircle_Outside");
+        if (shared != null)
+        {
+            foreach (BreathCircleUI circle in Object.FindObjectsByType<BreathCircleUI>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (circle != null && circle != shared)
+                    Object.DestroyImmediate(circle.gameObject);
+            }
+
+            Canvas sharedCanvas = shared.GetComponent<Canvas>();
+            if (sharedCanvas != null) sharedCanvas.worldCamera = cam;
+            Wire(shared, so => so.FindProperty("events").objectReferenceValue = events);
+            shared.gameObject.SetActive(false);
+            return shared;
+        }
+
+        Transform parent = GetOrCreateUiRoot().transform;
+
+        var existing = FindChildByName(parent, "BreathCircle");
         if (existing != null) Object.DestroyImmediate(existing.gameObject);
 
-        var canvasGo = MakeWorldCanvas("BreathCircle_Outside", parent, cam, new Vector2(900f, 900f));
-        if (cam != null)
-        {
-            canvasGo.transform.localPosition = new Vector3(0f, -0.15f, 0.6f);
-            canvasGo.transform.localRotation = Quaternion.identity;
-        }
-        else
-        {
-            canvasGo.AddComponent<FaceCamera>();
-        }
+        var canvasGo = MakeWorldCanvas("BreathCircle", parent, cam, new Vector2(900f, 900f));
 
         var group = canvasGo.AddComponent<CanvasGroup>();
 
@@ -312,15 +333,13 @@ internal static class Scene03OutsideWiringBuilder
     static void BuildBreathMissionGuideController(BreathCircleUI breathCircleUI, BreathEventsSO events)
     {
         var existing = GameObject.Find("BreathMissionGuideController");
-        if (existing != null) Object.DestroyImmediate(existing);
-
-        var go = new GameObject("BreathMissionGuideController");
-        Undo.RegisterCreatedObjectUndo(go, "Create Breath Mission Guide Controller");
-        var controller = go.AddComponent<BreathMissionGuideController>();
+        var go = existing != null ? existing : new GameObject("BreathMissionGuideController");
+        if (existing == null) Undo.RegisterCreatedObjectUndo(go, "Create Breath Mission Guide Controller");
+        var controller = go.GetComponent<BreathMissionGuideController>();
+        if (controller == null) controller = go.AddComponent<BreathMissionGuideController>();
 
         Wire(controller, so =>
         {
-            so.FindProperty("breathEvents").objectReferenceValue = events;
             so.FindProperty("breathCircleUI").objectReferenceValue = breathCircleUI;
         });
     }
@@ -329,13 +348,21 @@ internal static class Scene03OutsideWiringBuilder
     static Transform[] BuildWaypoints(Transform clueTransform)
     {
         var existing = GameObject.Find("Scene03_GuidingWaypoints");
-        if (existing != null) Object.DestroyImmediate(existing);
+        if (existing != null && existing.transform.childCount > 0)
+        {
+            // 실제 동선에 맞춰 수동/전용 도구로 배치한 경로를 전체 배선 재실행이 덮어쓰지 않는다.
+            var preserved = new Transform[existing.transform.childCount];
+            for (int i = 0; i < preserved.Length; i++)
+                preserved[i] = existing.transform.GetChild(i);
+            Debug.Log("[Scene03OutsideWiringBuilder] 기존 Scene03_GuidingWaypoints 경로를 보존합니다.");
+            return preserved;
+        }
 
-        var root = new GameObject("Scene03_GuidingWaypoints");
+        var root = existing != null ? existing : new GameObject("Scene03_GuidingWaypoints");
         Undo.RegisterCreatedObjectUndo(root, "Create Guiding Waypoints");
         root.transform.position = clueTransform.position;
 
-        const int count = 5;
+        const int count = 14;
         var waypoints = new Transform[count];
         for (int i = 0; i < count; i++)
         {
@@ -472,7 +499,7 @@ internal static class Scene03OutsideWiringBuilder
         tmp.fontSize = fontSize;
         tmp.color = color;
         tmp.alignment = TextAlignmentOptions.Center;
-        tmp.enableWordWrapping = true;
+        tmp.textWrappingMode = TextWrappingModes.Normal;
 
         var rt = (RectTransform)go.transform;
         rt.anchorMin = anchorMin;

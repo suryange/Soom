@@ -13,8 +13,32 @@ public class BreathEventsSO : ScriptableObject
     // 미션 최종 클리어 방송 채널
     public UnityAction OnMissionSuccess;
 
+    // 비활성 UI가 이벤트 구독 시점을 놓쳐도 최신 상태를 복구할 수 있는 런타임 스냅샷.
+    // NonSerialized이므로 에셋 파일에는 Play Mode 값이 저장되지 않는다.
+    [System.NonSerialized] private float currentBreathValue;
+    [System.NonSerialized] private int currentLoopCount;
+    [System.NonSerialized] private int breathValueVersion;
+    [System.NonSerialized] private int loopVersion;
+
+    public float CurrentBreathValue => currentBreathValue;
+    public int CurrentLoopCount => currentLoopCount;
+    public int BreathValueVersion => breathValueVersion;
+    public int LoopVersion => loopVersion;
+
     // 외부에서 데이터를 Publish하는 함수
-    public void RaiseBreathValue(float value) => OnBreathValueNormalized?.Invoke(value);
-    public void RaiseLoopCompleted(int count) => OnBreathLoopCompleted?.Invoke(count);
+    public void RaiseBreathValue(float value)
+    {
+        currentBreathValue = Mathf.Clamp01(value);
+        breathValueVersion++;
+        OnBreathValueNormalized?.Invoke(currentBreathValue);
+    }
+
+    public void RaiseLoopCompleted(int count)
+    {
+        currentLoopCount = Mathf.Max(0, count);
+        loopVersion++;
+        OnBreathLoopCompleted?.Invoke(currentLoopCount);
+    }
+
     public void RaiseMissionSuccess() => OnMissionSuccess?.Invoke();
 }

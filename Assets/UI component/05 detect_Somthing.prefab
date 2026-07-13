@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 7732794932186799643}
   - component: {fileID: 8324203224547400571}
   - component: {fileID: 4987559119031361452}
+  - component: {fileID: 7392851204617735011}
   m_Layer: 5
   m_Name: 05 detect_Somthing
   m_TagString: Untagged
@@ -101,6 +102,22 @@ MonoBehaviour:
   m_BlockingMask:
     serializedVersion: 2
     m_Bits: 4294967295
+--- !u!114 &7392851204617735011
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1740840319090098758}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8d4e1f92c67b4b1f8bcf19eb57b2a6e1, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::DetectionIndicatorTracker
+  targetCamera: {fileID: 0}
+  target: {fileID: 0}
+  indicatorRect: {fileID: 517187618245654160}
+  targetLocalOffset: {x: 0, y: 0, z: 0}
 --- !u!1 &3301141857485013253
 GameObject:
   m_ObjectHideFlags: 0
