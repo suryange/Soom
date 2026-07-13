@@ -4,11 +4,11 @@ using UnityEngine;
 public class InteractableDataSO : ScriptableObject
 {
     [Header("UI Settings")]
-    public string objectName;           // ¿¹: "UNKNOWN DEVICE", "FOX"
-    public string descriptionText;      // ¿¹: "Origin: Unknown"
-    public string missionGuideText;     // ¹Ì¼Ç ÁøÀÔ ½Ã °¡ÀÌµå ÅØ½ºÆ®
+    public string objectName;           // ì˜ˆ: "UNKNOWN DEVICE", "FOX"
+    public string descriptionText;      // ì˜ˆ: "Origin: Unknown"
+    public string missionGuideText;     // ë¯¸ì…˜ ì§„ì… ì‹œ ê°€ì´ë“œ í…ìŠ¤íŠ¸
 
     [Header("Mission Settings")]
-    public bool requiresBreathing;      // È£Èí ¹Ì¼Ç ÇÊ¿ä ¿©ºÎ
-    public int targetBreathCount = 3;   // ¸ñÇ¥ È£Èí È½¼ö
+    public bool requiresBreathing;      // í˜¸í¡ ë¯¸ì…˜ í•„ìš” ì—¬ë¶€
+    public int targetBreathCount = 3;   // ëª©í‘œ í˜¸í¡ íšŸìˆ˜
 }
