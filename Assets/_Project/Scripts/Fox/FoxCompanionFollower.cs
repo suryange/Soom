@@ -27,8 +27,22 @@ public class FoxCompanionFollower : MonoBehaviour
     [Tooltip("플레이어와 이 거리 이하로 가까워지면 더 이상 다가가지 않음")]
     [SerializeField] private float stoppingDistance = 1.2f;
 
+    [Header("이동 애니메이션 (옵션 — Fox_Encounter 컨트롤러의 Walk/Joy 상태)")]
+    [Tooltip("걷기/정지 상태를 재생할 Animator. 비워두면 애니메이션 없이 이동만 한다.")]
+    [SerializeField] private Animator foxAnimator;
+    [Tooltip("이동 중 재생할 상태 이름 (Action5_Walking 클립)")]
+    [SerializeField] private string movingStateName = "Walk";
+    [Tooltip("멈춰 있을 때 재생할 상태 이름 (Action4_Standing_Happy 클립)")]
+    [SerializeField] private string idleStateName = "Joy";
+    [Tooltip("걷기↔정지 전환 크로스페이드 시간(초)")]
+    [SerializeField] private float animCrossFade = 0.2f;
+
     private bool _isFollowing;
     private float _destinationTimer;
+
+    // 이동 애니메이션 상태 변화 감지용 (매 프레임 재생 호출을 막기 위함)
+    private bool _animStateInitialized;
+    private bool _animMoving;
 
     /// <summary>동료 되기(5.6)가 확정되면 컨트롤러가 호출 — 추종을 시작한다.</summary>
     public void BeginFollowing()
@@ -52,11 +66,18 @@ public class FoxCompanionFollower : MonoBehaviour
         {
             agent.ResetPath();
         }
+        UpdateLocomotionAnimation(false);
     }
 
     private void Update()
     {
         if (!_isFollowing || player == null) return;
+
+        // 플레이어와의 수평 거리로 '이동 중' 여부를 판정해 걷기/정지 애니메이션을 전환한다.
+        Vector3 toPlayer = player.position - transform.position;
+        toPlayer.y = 0f;
+        bool moving = toPlayer.magnitude > stoppingDistance;
+        UpdateLocomotionAnimation(moving);
 
         // NavMeshAgent가 실제로 NavMesh 위에서 활성화되어 있을 때만 정식 경로를 사용한다.
         // (씬에 NavMesh가 아직 구워져 있지 않으면 isOnNavMesh가 항상 false이므로 자동으로
@@ -74,6 +95,20 @@ public class FoxCompanionFollower : MonoBehaviour
         {
             FollowWithTransform();
         }
+    }
+
+    /// <summary>이동/정지 상태가 바뀔 때만 걷기/정지 상태로 크로스페이드한다.</summary>
+    private void UpdateLocomotionAnimation(bool moving)
+    {
+        if (foxAnimator == null || foxAnimator.runtimeAnimatorController == null) return;
+        if (_animStateInitialized && _animMoving == moving) return;
+
+        _animStateInitialized = true;
+        _animMoving = moving;
+
+        string state = moving ? movingStateName : idleStateName;
+        if (!string.IsNullOrEmpty(state) && foxAnimator.HasState(0, Animator.StringToHash(state)))
+            foxAnimator.CrossFadeInFixedTime(state, animCrossFade);
     }
 
     private void FollowWithTransform()
