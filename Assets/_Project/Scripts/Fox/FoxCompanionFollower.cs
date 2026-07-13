@@ -51,8 +51,13 @@ public class FoxCompanionFollower : MonoBehaviour
 
         if (agent != null)
         {
-            agent.enabled = true;
-            if (agent.isOnNavMesh) agent.stoppingDistance = stoppingDistance;
+            // NavMesh가 실제로 존재해 여우 위치를 샘플링할 수 있을 때만 정식 NavMeshAgent를 켠다.
+            // NavMesh가 안 구워진 상태에서 에이전트를 켜면 Transform을 점유해 아래의 폴백 추종
+            // (transform.position 직접 이동)과 충돌하고 콘솔에 'not on NavMesh' 에러가 남으므로,
+            // 이 경우엔 에이전트를 꺼둔 채 단순 Transform 추종으로 넘어간다.
+            bool hasNavMesh = NavMesh.SamplePosition(transform.position, out _, 2f, NavMesh.AllAreas);
+            agent.enabled = hasNavMesh;
+            if (hasNavMesh && agent.isOnNavMesh) agent.stoppingDistance = stoppingDistance;
         }
 
         _isFollowing = true;

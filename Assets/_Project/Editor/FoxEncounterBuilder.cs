@@ -140,6 +140,33 @@ public static class FoxEncounterBuilder
         BuildFoxEncounter();
     }
 
+    /// <summary>
+    /// 배선한 뒤 곧바로 활성 씬을 저장한다. 배선은 메모리에만 남고 씬을 저장하지 않으면
+    /// 디스크(.unity)에는 반영되지 않아 "여우에 아무 스크립트도 안 붙어 있는" 상태가 되므로,
+    /// 클릭 한 번으로 배선+저장까지 끝내고 싶을 때 이 메뉴를 쓴다.
+    /// </summary>
+    [MenuItem("SOOM/Build Fox Encounter (and Save)")]
+    private static void BuildFoxEncounterAndSave()
+    {
+        // 아직 배선이 없을 때만 새로 만든다. 이미 있으면(메모리에만 있고 미저장일 수 있음) 저장만 한다.
+        if (Object.FindFirstObjectByType<FoxEncounterController>() == null)
+            BuildFoxEncounter();
+
+        Scene scene = EditorSceneManager.GetActiveScene();
+        if (Object.FindFirstObjectByType<FoxEncounterController>() != null)
+        {
+            bool ok = EditorSceneManager.SaveScene(scene);
+            Debug.Log(ok
+                ? $"[FoxEncounterBuilder] '{scene.name}' 저장 완료 — 여우 조우 배선이 디스크에 반영되었습니다."
+                : "[FoxEncounterBuilder] 씬 저장에 실패했습니다. 수동으로 저장(Ctrl/Cmd+S)하세요.");
+        }
+        else
+        {
+            Debug.LogWarning(
+                "[FoxEncounterBuilder] 배선이 생성되지 않아 저장을 건너뜁니다. 위 콘솔 경고(fox_sample_2/레이어/BreathEvents 등)를 확인하세요.");
+        }
+    }
+
     private static void RemoveFoxEncounter()
     {
         var controller = Object.FindFirstObjectByType<FoxEncounterController>();
