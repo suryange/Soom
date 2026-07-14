@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 8d4175e1a7f9045be908411d9aad13c6
+guid: 2a089836517ea4873a1635b4a5f549db
 ModelImporter:
   serializedVersion: 24200
   internalIDToNameTable: []
@@ -7,23 +7,38 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
-      name: M_Frame
-    second: {fileID: 2100000, guid: e0134bd0114d74a729d30a1bbb269aa4, type: 2}
+      name: M_Glass
+    second: {fileID: 2100000, guid: a635fe886cbc440eeb9e44f44ab8373b, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
-      name: M_Glass
-    second: {fileID: 2100000, guid: 8c935103a61eb48a69ea5ae63981f4c7, type: 2}
+      name: M_MintFrame
+    second: {fileID: 2100000, guid: fa8da8686076a4fcea59c2735362c544, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: M_PurpleFrame
+    second: {fileID: 2100000, guid: 12cedc24d17fa4fc2bb0c47ece85643c, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: M_RubberBlack
-    second: {fileID: 2100000, guid: 7e44b97c0412c43de9c40e87f7d91759, type: 2}
+    second: {fileID: 2100000, guid: 13e994dbba463423f95fd102517febe3, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: M_Spaceship_base
-    second: {fileID: 2100000, guid: 80909835692824cf4a3b553624012060, type: 2}
+    second: {fileID: 2100000, guid: 1d5ed7621a8ea4e8ea092a366f6654e4, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Material_GlassInside
+    second: {fileID: 2100000, guid: b450e60d4284b4bcaa8d47f40c66c512, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: spaceshipbase_2
+    second: {fileID: 2100000, guid: 14ea681f5a28a454287a3002369235e0, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0
