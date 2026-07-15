@@ -78,6 +78,7 @@ public class FoxEncounterController : MonoBehaviour
     private const string CompanionStatusText = "언제나 함께";
 
     private Material _membraneMaterialInstance;
+    private PlayerStateManager _subscribedStateManager;
 
     public EncounterPhase CurrentPhase { get; private set; } = EncounterPhase.Detected;
 
@@ -86,9 +87,20 @@ public class FoxEncounterController : MonoBehaviour
         if (actionButton != null) actionButton.onClick.AddListener(OnActionButtonClicked);
     }
 
+    private void Start()
+    {
+        TrySubscribeStateManager();
+    }
+
+    private void Update()
+    {
+        TrySubscribeStateManager();
+    }
+
     private void OnDestroy()
     {
         if (actionButton != null) actionButton.onClick.RemoveListener(OnActionButtonClicked);
+        UnsubscribeStateManager();
     }
 
     private void OnEnable()
@@ -106,6 +118,51 @@ public class FoxEncounterController : MonoBehaviour
         {
             breathEvents.OnBreathLoopCompleted -= HandleLoopCompleted;
             breathEvents.OnMissionSuccess -= HandleMissionSuccess;
+        }
+
+
+        if (breathCircleUI != null) breathCircleUI.Hide(this);
+    }
+
+    private void TrySubscribeStateManager()
+    {
+        PlayerStateManager current = PlayerStateManager.Instance;
+        if (_subscribedStateManager == current) return;
+
+        UnsubscribeStateManager();
+        if (current == null) return;
+
+        _subscribedStateManager = current;
+        _subscribedStateManager.OnStateExit += HandlePlayerStateExit;
+    }
+
+    private void UnsubscribeStateManager()
+    {
+        if (_subscribedStateManager != null)
+            _subscribedStateManager.OnStateExit -= HandlePlayerStateExit;
+        _subscribedStateManager = null;
+    }
+
+    private void HandlePlayerStateExit(PlayerState state)
+    {
+        if (state != PlayerState.BreathingActive || breathCircleUI == null ||
+            breathCircleUI.VisibilityOwner != this)
+            return;
+
+        breathCircleUI.Hide(this);
+
+        if (CurrentPhase == EncounterPhase.FocusBreath)
+        {
+            CurrentPhase = EncounterPhase.Wary;
+            string guide = data != null && !string.IsNullOrEmpty(data.missionGuideText)
+                ? data.missionGuideText
+                : DefaultFocusBreathGuide;
+            ShowInstructionAndAction(guide, "호흡 시작");
+        }
+        else if (CurrentPhase == EncounterPhase.MembraneBreath)
+        {
+            CurrentPhase = EncounterPhase.Revealed;
+            ShowInstructionAndAction(RevealedInstruction, "불안의 막 제거");
         }
     }
 
@@ -155,7 +212,7 @@ public class FoxEncounterController : MonoBehaviour
         CurrentPhase = EncounterPhase.FocusBreath;
 
         HideActionButton();
-        if (breathCircleUI != null) breathCircleUI.Show();
+        if (breathCircleUI != null) breathCircleUI.Show(this);
 
         if (PlayerStateManager.Instance != null)
             PlayerStateManager.Instance.ChangeState(PlayerState.BreathingActive);
@@ -166,7 +223,7 @@ public class FoxEncounterController : MonoBehaviour
     {
         CurrentPhase = EncounterPhase.Revealed;
 
-        if (breathCircleUI != null) breathCircleUI.Hide();
+        if (breathCircleUI != null) breathCircleUI.Hide(this);
         if (statusText != null) statusText.text = RevealedStatusText;
 
         if (membraneObject != null) membraneObject.SetActive(true);
@@ -184,7 +241,7 @@ public class FoxEncounterController : MonoBehaviour
 
         if (instructionText != null) instructionText.text = MembraneBreathGuide;
         HideActionButton();
-        if (breathCircleUI != null) breathCircleUI.Show();
+        if (breathCircleUI != null) breathCircleUI.Show(this);
 
         if (PlayerStateManager.Instance != null)
             PlayerStateManager.Instance.ChangeState(PlayerState.BreathingActive);
@@ -195,7 +252,7 @@ public class FoxEncounterController : MonoBehaviour
     {
         CurrentPhase = EncounterPhase.Cleared;
 
-        if (breathCircleUI != null) breathCircleUI.Hide();
+        if (breathCircleUI != null) breathCircleUI.Hide(this);
 
         SetMembraneAlpha(0f);
         if (membraneObject != null) Destroy(membraneObject);
