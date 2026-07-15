@@ -244,6 +244,17 @@ MonoBehaviour:
   maxBreathAngle: 30
   inhaleThreshold: 0.7
   exhaleThreshold: 0.3
+  minimumPhaseDuration: 0.15
+  isMeasuring: 0
+  isStateSubscribed: 0
+  breathingStateEnterCount: 0
+  measurementSessionCount: 0
+  currentLoopCount: 0
+  leftAngleDelta: 0
+  rightAngleDelta: 0
+  activeInputAngle: 0
+  currentBreathValue: 0
+  currentPhase: 0
 --- !u!1 &4908793638985150259
 GameObject:
   m_ObjectHideFlags: 0

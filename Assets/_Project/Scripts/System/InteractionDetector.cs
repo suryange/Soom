@@ -49,6 +49,16 @@ public class InteractionDetector : MonoBehaviour
     /// </summary>
     private void DetectInteractablesInView()
     {
+        // 단서 감지는 자유 이동 상태에서만 허용한다. 다른 상태로 전환되면
+        // 이미 표시 중인 감지 UI도 즉시 정리한다.
+        if (PlayerStateManager.Instance != null &&
+            PlayerStateManager.Instance.CurrentState != PlayerState.Idle &&
+            PlayerStateManager.Instance.CurrentState != PlayerState.Move)
+        {
+            HideAllDetectedUI();
+            return;
+        }
+
         // 플레이어 주변 반경 내에 있는 지정 레이어의 모든 콜라이더를 1차 검출
         Collider[] colliders = Physics.OverlapSphere(viewOrigin.position, detectionRadius, interactableLayer);
 
@@ -61,7 +71,9 @@ public class InteractionDetector : MonoBehaviour
         // 1차 검출된 오브젝트들이 플레이어의 시야각 내에 있는지 2차 필터링
         foreach (var col in colliders)
         {
-            IInteractable interactable = col.GetComponent<IInteractable>();
+            // ClueObject처럼 Collider는 모델 자식에, IInteractable은 루트에 있는
+            // 계층도 감지할 수 있어야 한다.
+            IInteractable interactable = col.GetComponentInParent<IInteractable>();
             if (interactable == null) continue;
 
             // 플레이어 시선 정면과 오브젝트를 향한 방향 벡터 사이의 각도 계산
@@ -105,6 +117,17 @@ public class InteractionDetector : MonoBehaviour
         // 데이터를 다음 프레임을 위해 저장 및 최종 상호작용 대상 업데이트
         interactablesInRange = currentFrameInteractables;
         currentTarget = bestTarget;
+    }
+
+    private void HideAllDetectedUI()
+    {
+        foreach (IInteractable interactable in interactablesInRange)
+        {
+            interactable.HideUI();
+        }
+
+        interactablesInRange.Clear();
+        currentTarget = null;
     }
 
     /// <summary>
