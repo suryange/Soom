@@ -11,11 +11,11 @@ public class InteractionDetector : MonoBehaviour
     [SerializeField] private Transform viewOrigin;
 
     [Tooltip("상호작용 가능한 물체를 감지할 최대 반경")]
-    [SerializeField] private float detectionRadius = 5f;
+    [SerializeField] private float detectionRadius = 20f;
 
     [Tooltip("물체를 감지할 플레이어의 시야각")]
     [Range(0f, 180f)]
-    [SerializeField] private float viewAngle = 90f;
+    [SerializeField] private float viewAngle = 180f;
 
     [Tooltip("상호작용 가능한 오브젝트가 속한 레이어")]
     [SerializeField] private LayerMask interactableLayer;
@@ -35,7 +35,8 @@ public class InteractionDetector : MonoBehaviour
     {
         if (viewOrigin == null)
         {
-            viewOrigin = transform;
+            Camera mainCamera = Camera.main;
+            viewOrigin = mainCamera != null ? mainCamera.transform : transform;
         }
     }
 

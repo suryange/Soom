@@ -43,12 +43,12 @@ internal static class Scene03CluePhysicalSetup
             throw new MissingReferenceException("Scene 03에서 ClueObject를 찾지 못했습니다.");
         }
 
-        Transform messageClose = clue.transform.Find("messageClose");
-        Transform messageOpen = clue.transform.Find("messageOpen");
+        Transform messageClose = FindSceneObject(scene, "memo_close");
+        Transform messageOpen = FindSceneObject(scene, "memo_open");
         if (messageClose == null || messageOpen == null)
         {
             throw new MissingReferenceException(
-                "ClueObject 아래에 messageClose와 messageOpen이 모두 있어야 합니다.");
+                "Scene 03 하이어라키에 memo_close와 memo_open이 모두 있어야 합니다.");
         }
 
         int interactableLayer = LayerMask.NameToLayer("Interactable");
@@ -126,7 +126,22 @@ internal static class Scene03CluePhysicalSetup
         Debug.Log(
             $"[Scene03CluePhysicalSetup] 완료: Layer=Interactable, Collider={colliders.Length}, " +
             "Far Attach=Near, ClueAttachPoint, Rigidbody/XRGrabInteractable/HologramMessage 구성, " +
-            "messageClose 활성/messageOpen 비활성.");
+            "memo_close 활성/memo_open 비활성.");
+    }
+
+    private static Transform FindSceneObject(Scene scene, string objectName)
+    {
+        foreach (GameObject rootObject in scene.GetRootGameObjects())
+        {
+            Transform[] hierarchy = rootObject.GetComponentsInChildren<Transform>(true);
+            foreach (Transform candidate in hierarchy)
+            {
+                if (candidate.name == objectName)
+                    return candidate;
+            }
+        }
+
+        return null;
     }
 
     private static Transform EnsureAttachPoint(Transform clue)
