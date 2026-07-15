@@ -5,6 +5,10 @@
 > 진행 방식: Fable 5가 오케스트레이션, 실행은 서브에이전트(Sonnet 등)가 수행.
 > ⚠️ 구 PoC 레이어(BreathSignalSO/ClarityPoCDriver/SandstormController/SoomSetup 등)는 새 아키텍처에서 삭제됨.
 > 구 기반 1차 작업물은 `claude/nice-varahamihira-d3bfec` 브랜치 커밋 a734402에 보존.
+>
+> **2026-07-09: 명세 1~6장 잔여 기능을 관심사별 PR 6개로 분할 제출 — #9(모래바람) #10(외부 배선) #11(엔딩) #12(스타팅) #13(내부 튜토리얼) #14(여우).**
+> 공통 방식: 씬(.unity)은 건드리지 않고 `SOOM > Build ...` 에디터 메뉴 빌더로 배선 제공. 각 PR 머지 후 해당 씬에서 메뉴 실행 + 씬 저장 필요.
+> ⚠️ 공통 선행 작업: Tag Manager에 `Player` 태그 등록 + XR Origin에 부여 (트리거/감지 로직 전제, 기존 ClueObject.cs도 동일).
 
 ## ✅ 완료 — 팀 (suryeon-breath 새 아키텍처)
 
@@ -35,7 +39,7 @@
 - [ ] AudioMixer 에셋 수동 생성 + SoomAudioManager 연결 (그룹: BGM/SFX/Voice, 노출 파라미터명 MasterVolume/BGMVolume/SFXVolume/VoiceVolume)
 - [ ] 안내 음성/SFX 에셋 확보 및 등록
 
-## 1. 스타팅 화면 (Scene_01_Start) — 씬 스텁만 존재
+## 1. 스타팅 화면 (Scene_01_Start) — PR #12 제출 (에디터 배선·Play 검증 대기)
 
 - [ ] 1.1 씬 진입 카메라 페이드 인 (ScreenFader 사용)
 - [ ] 1.2.1 메인 UI — 게임 시작
@@ -46,28 +50,28 @@
 - [ ] 1.3.2 CLI 터미널 로딩 UI (타이핑 효과) — SOOMSceneManager 로딩 TODO와 연계
 - [ ] 1.3.3 추락 완료 연출 (탑뷰 + 연기/스파크 파티클)
 
-## 2. 우주선 내부 (Scene_02_InGame_Inside) — 씬 스텁만 존재
+## 2. 우주선 내부 (Scene_02_InGame_Inside) — PR #13 제출 (에디터 배선·Play 검증 대기)
 
 - [ ] 2.1.1 기상 연출 (Vignette 핑퐁 + "???별 불시착" UI)
 - [ ] 2.1.2 지시문 + 안내 음성
 - [ ] 2.2 호흡 캘리브레이션 (콘텐츠 A) — BreathManager/BreathTiltDriver + BreathCircleUI 배선, 성공 안내 UI
 - [ ] 2.3 해치 개방 (Rotation 애니메이션 + 빛 연출 + 안내 UI) — 우주선 내부 모델 에셋 필요
 
-## 3. 우주선 외부 (Scene_03_InGame_Outside) — 팀이 상당 부분 진행
+## 3. 우주선 외부 (Scene_03_InGame_Outside) — 마무리 배선 PR #10 제출
 
 - [ ] 3.1 마무리 — 내부→외부 씬 전환 배선 (SOOMSceneManager + 페이드)
 - [ ] 3.2 마무리 — 상호작용 UI 문구("UNKNOWN DEVICE DETECTED / Origin: Unknown") World Space UI 프리팹 제작, InteractableDataSO 실제 배선 (현재 참조처 0건)
 - [ ] 3.3 마무리 — 트리거 버튼 입력 → InteractionManager.BeginInteraction 연결 (XRI SelectEntered, 현재 미배선), ClueObject를 씬 오브젝트에 실제 부착
 - [ ] 3.4 마무리 — 콘텐츠 B에 BreathCircleUI 연결, ClueObject의 StartGuiding 주석 해제 + Waypoint 경로 배치, 지시문 UI
 
-## 4. 인게임 모래바람 구역 — 구 PoC 재이식 필요
+## 4. 인게임 모래바람 구역 — 새 아키텍처 재구현 PR #9 제출
 
 - [ ] 모래폭풍 비주얼 재이식 — 구 SandstormController/DustVignette/파티클(a734402 이전 커밋에 있음)을 새 아키텍처에 맞게 이식하거나 재구현 (Clarity → 이벤트 채널 기반으로)
 - [ ] 4.1 Box Collider 트리거 존 → 폭풍 시작 + 챕터/퀘스트 UI (PlayerStateManager.SetMissionZone 활용)
 - [ ] 4.2 바람 SFX(SoomAudioManager), 등불 빛 강도 Lerp→0 (GuidingLightController에 Light 제어 추가)
 - [ ] 4.3 호흡 수행 (콘텐츠 C) — 호흡 루프 완료마다 파티클/Fog 감소 배선
 
-## 5. 여우와의 조우
+## 5. 여우와의 조우 — PR #14 제출 (플레이스홀더 여우, 모델 오면 교체)
 
 - [ ] 5.1 동물 감지 — InteractionDetector 재사용, 여우 프리팹 ⚠️ 모델/애니메이션 에셋 확보 필요
 - [ ] 5.2 경계 상태 — LookAt 상태 UI + Animator `Sit_Growl`
@@ -76,7 +80,7 @@
 - [ ] 5.5 호흡 수행 (콘텐츠 E) — 루프당 막 Alpha 1→0, 3회 시 Destroy
 - [ ] 5.6 동료 합류 — `Stand_Joy` + NavMeshAgent 플레이어 추종
 
-## 6. 엔딩 화면
+## 6. 엔딩 화면 — PR #11 제출
 
 - [ ] 6.1 등불 시선 트래킹 (플레이어 위치 고정)
 - [ ] 6.2 페이드 아웃 (ScreenFader)
@@ -85,7 +89,7 @@
 ## 빌드 / 검증
 
 - [ ] 오늘 포팅분 에디터 컴파일 확인 + Breath_Test 씬에서 Play 검증 (BreathCircleUI 스케일/구슬, ScreenFader 페이드, SOOMSceneManager 전환)
-- [ ] XR Plug-in Management 토글 (Android OpenXR 로더 + Oculus Touch + Meta Quest 기능 그룹) — 수동
+- [ ] XR Plug-in Management 토글 — OpenXR 시작 활성화는 PR #8로 머지됨. Android 로더 + Oculus Touch + Meta Quest 기능 그룹은 에디터에서 수동 확인 필요
 - [ ] Quest 실기기 Build & Run 검증
-- [ ] 한글 폰트 대응 — 새 브랜치에는 구 폰트 헬퍼가 없음. UI에 한글 텍스트 넣기 전에 Noto Sans KR 등 TMP 폰트 에셋 추가 필요
+- [ ] 한글 폰트 대응 — `origin/suryeon-breath`(d0d1492)에 NEXON Lv2 Gothic + NotoSansKR SDF 추가됨(머지 대기). PR #10~14 UI는 `_Project/Resources/Fonts/NotoSansKR SDF` 사용
 - [ ] 구 브랜치(claude/nice-varahamihira-d3bfec)의 나머지 자산 중 재활용할 것 검토 (PopupSystem/WorldPopup 등 팝업 시스템)
