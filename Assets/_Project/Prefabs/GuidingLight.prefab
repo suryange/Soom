@@ -48,8 +48,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GuidingLightController
   speed: 1.6
   waypointTolerance: 0.35
-  maxLeadDistance: 40
-  resumeLeadDistance: 20
+  maxLeadDistance: 20
+  resumeLeadDistance: 10
   turnSpeed: 200
   useSineMovement: 1
   sineAmplitude: 0.45
