@@ -22,7 +22,7 @@ Material:
   m_PrefabAsset: {fileID: 0}
   m_Name: M_Holo
   m_Shader: {fileID: 4800000, guid: 933532a4fcc9baf4fa0491de14d08ed7, type: 3}
-  m_Parent: {fileID: 2100000, guid: b36b9eee45d24423ba73d78b45243cff, type: 2}
+  m_Parent: {fileID: 2100000, guid: 06a978d992cd74c448b969512d0d8cb9, type: 2}
   m_ModifiedSerializedProperties: 26
   m_ValidKeywords:
   - _ALPHAPREMULTIPLY_ON
