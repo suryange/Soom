@@ -24,8 +24,13 @@ public class FoxCompanionFollower : MonoBehaviour
     [SerializeField] private float fallbackTurnSpeed = 360f;
 
     [Header("공통")]
-    [Tooltip("플레이어와 이 거리 이하로 가까워지면 더 이상 다가가지 않음")]
-    [SerializeField] private float stoppingDistance = 1.2f;
+    [Tooltip("플레이어와 이 거리 이하로 가까워지면 더 이상 다가가지 않음 (여우 크기상 2~2.5 권장)")]
+    [SerializeField] private float stoppingDistance = 2.2f;
+    [Tooltip("모델의 정면(코) 방향이 +Z가 아닐 때 회전 보정(도). 옆을 보고 따라오면 90 또는 -90, " +
+             "등을 보이면 180 을 넣는다. 플레이 중 값을 바꿔가며 정면이 맞을 때를 찾으면 된다.")]
+    [SerializeField] private float facingYawOffset = 0f;
+    [Tooltip("이 여유 이내로 거리가 맞으면 재배치하지 않음(미세 떨림 방지). 보통 0.2~0.4")]
+    [SerializeField] private float keepDistanceDeadzone = 0.3f;
 
     [Header("이동 애니메이션 (옵션 — Fox_Encounter 컨트롤러의 Walk/Joy 상태)")]
     [Tooltip("걷기/정지 상태를 재생할 Animator. 비워두면 애니메이션 없이 이동만 한다.")]
@@ -78,27 +83,50 @@ public class FoxCompanionFollower : MonoBehaviour
     {
         if (!_isFollowing || player == null) return;
 
-        // 플레이어와의 수평 거리로 '이동 중' 여부를 판정해 걷기/정지 애니메이션을 전환한다.
+        // 플레이어와의 수평 거리/방향
         Vector3 toPlayer = player.position - transform.position;
         toPlayer.y = 0f;
-        bool moving = toPlayer.magnitude > stoppingDistance;
-        UpdateLocomotionAnimation(moving);
+        float distance = toPlayer.magnitude;
+
+        // 유지해야 할 링(반경 stoppingDistance) 위의 목표 지점.
+        // 너무 멀면 이 지점이 플레이어 쪽(앞)이라 다가가고, 너무 가까우면 반대쪽(뒤)이라 물러난다.
+        Vector3 dirFromPlayer = distance > 0.0001f ? -toPlayer / distance : -transform.forward;
+        Vector3 ringTarget = player.position + dirFromPlayer * stoppingDistance;
+        ringTarget.y = transform.position.y;
+
+        // 현재 거리가 목표에서 데드존 이상 벗어났을 때만 재배치(미세 떨림 방지).
+        bool repositioning = Mathf.Abs(distance - stoppingDistance) > keepDistanceDeadzone;
+        UpdateLocomotionAnimation(repositioning);
+
+        // 항상 플레이어를 정면으로 바라보게 회전한다(모델 전방축 보정 포함).
+        // 멈춰 있을 때도, 뒤로 물러날 때도 계속 플레이어를 향한다.
+        if (distance > 0.0001f)
+        {
+            Vector3 dir = toPlayer / distance;
+            Quaternion look = Quaternion.LookRotation(dir, Vector3.up) * Quaternion.Euler(0f, facingYawOffset, 0f);
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, look, fallbackTurnSpeed * Time.deltaTime);
+        }
+
+        if (!repositioning) return;
 
         // NavMeshAgent가 실제로 NavMesh 위에서 활성화되어 있을 때만 정식 경로를 사용한다.
         // (씬에 NavMesh가 아직 구워져 있지 않으면 isOnNavMesh가 항상 false이므로 자동으로
         // 아래의 단순 Transform 추종 폴백으로 넘어간다.)
         if (agent != null && agent.enabled && agent.isOnNavMesh)
         {
+            agent.updateRotation = false; // 회전은 위에서 직접 처리(항상 플레이어를 향함)
+            agent.stoppingDistance = 0f;  // 링 지점 자체가 목표라 0
             _destinationTimer += Time.deltaTime;
             if (_destinationTimer >= destinationUpdateInterval)
             {
                 _destinationTimer = 0f;
-                agent.SetDestination(player.position);
+                agent.SetDestination(ringTarget);
             }
         }
         else
         {
-            FollowWithTransform();
+            // 폴백: 링 지점까지 직접 보간(앞으로 다가가거나 뒤로 물러남).
+            transform.position = Vector3.MoveTowards(transform.position, ringTarget, fallbackMoveSpeed * Time.deltaTime);
         }
     }
 
@@ -114,25 +142,6 @@ public class FoxCompanionFollower : MonoBehaviour
         string state = moving ? movingStateName : idleStateName;
         if (!string.IsNullOrEmpty(state) && foxAnimator.HasState(0, Animator.StringToHash(state)))
             foxAnimator.CrossFadeInFixedTime(state, animCrossFade);
-    }
-
-    private void FollowWithTransform()
-    {
-        Vector3 toPlayer = player.position - transform.position;
-        toPlayer.y = 0f;
-        float distance = toPlayer.magnitude;
-
-        if (distance > stoppingDistance)
-        {
-            Vector3 direction = toPlayer.normalized;
-            transform.position = Vector3.MoveTowards(
-                transform.position,
-                transform.position + direction * distance,
-                fallbackMoveSpeed * Time.deltaTime);
-
-            Quaternion targetRotation = Quaternion.LookRotation(direction, Vector3.up);
-            transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, fallbackTurnSpeed * Time.deltaTime);
-        }
     }
 
     private static Transform ResolvePlayerTransform()
