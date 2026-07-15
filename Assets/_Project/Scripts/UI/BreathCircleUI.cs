@@ -41,6 +41,8 @@ public class BreathCircleUI : MonoBehaviour
     [SerializeField] float fadeDuration = 0.3f;
 
     [Header("XR display")]
+    [Tooltip("On Show(), place the panel once in front of the camera, then leave it fixed in world " +
+             "space so the head can turn away from it (standard VR comfort). It is NOT glued to the head.")]
     [SerializeField] bool followMainCamera = true;
     [SerializeField] Vector3 cameraLocalPosition = new Vector3(0f, -0.08f, 0.75f);
 
@@ -61,6 +63,7 @@ public class BreathCircleUI : MonoBehaviour
     Coroutine _pulseRoutine;
     Coroutine _fadeRoutine;
     bool _visibleRequested;
+    bool _placed; // world-anchor latch: true once the panel has been placed for the current Show()
     int _observedBreathValueVersion = -1;
     int _observedLoopVersion = -1;
 
@@ -157,7 +160,7 @@ public class BreathCircleUI : MonoBehaviour
     void Update()
     {
         if (_visibleRequested)
-            UpdateCameraPlacement();
+            PlaceInWorldOnce();
 
         SyncEventChannelSnapshot();
 
@@ -268,6 +271,7 @@ public class BreathCircleUI : MonoBehaviour
             return;
 
         _visibleRequested = true;
+        _placed = false; // re-anchor in front of wherever the player is looking at mission start
         EnsureRenderConfiguration();
         ResetSlots();
         gameObject.SetActive(true);
@@ -297,7 +301,7 @@ public class BreathCircleUI : MonoBehaviour
             }
         }
 
-        UpdateCameraPlacement();
+        PlaceInWorldOnce();
         EnsureSprites();
         EnsureHighVisibility();
     }
@@ -334,20 +338,40 @@ public class BreathCircleUI : MonoBehaviour
         image.raycastTarget = false;
     }
 
-    void UpdateCameraPlacement()
+    // Place the panel ONCE, in world space, in front of where the player is currently looking,
+    // then latch (_placed). It is intentionally NOT re-synced to the head every frame: once anchored,
+    // turning the head lets the panel fall out of view, and the terrain stays fixed behind it —
+    // standard VR behavior. Re-anchors only on the next Show() (see Show()/_placed reset).
+    void PlaceInWorldOnce()
     {
-        if (!followMainCamera) return;
+        if (!followMainCamera || _placed) return;
 
         Camera camera = Camera.main;
         if (!camera) return;
 
-        // SoomUI 아래 공용 World Space Canvas를 유지하면서 HMD 앞에 고정한다.
-        transform.position = camera.transform.TransformPoint(cameraLocalPosition);
-        transform.rotation = camera.transform.rotation;
+        Transform cam = camera.transform;
 
+        // Use the camera's *horizontal* facing only, so head pitch/roll at mission start don't tilt
+        // the panel — it sits upright on the horizon in front of the player.
+        Vector3 forward = cam.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude < 1e-4f) forward = Vector3.forward; // looking straight up/down
+        forward.Normalize();
+        Vector3 right = Vector3.Cross(Vector3.up, forward);
+
+        Vector3 worldOffset = right * cameraLocalPosition.x
+                            + Vector3.up * cameraLocalPosition.y
+                            + forward * cameraLocalPosition.z;
+
+        transform.SetPositionAndRotation(cam.position + worldOffset,
+                                         Quaternion.LookRotation(forward, Vector3.up));
+
+        // We own the panel's world transform here; keep any billboard from also driving it.
         FaceCamera faceCamera = GetComponent<FaceCamera>();
         if (faceCamera && faceCamera.enabled)
             faceCamera.enabled = false;
+
+        _placed = true;
     }
 
     void ResetSlots()
