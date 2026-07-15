@@ -161,7 +161,7 @@ internal static class Scene03DetectionSetup
     {
         Transform closedMessage = hologram.messageClose != null
             ? hologram.messageClose.transform
-            : clue.Find("messageClose");
+            : clue.Find("memo_close");
         Transform boundsRoot = closedMessage != null ? closedMessage : clue;
         Renderer[] renderers = boundsRoot.GetComponentsInChildren<Renderer>(true);
         if (renderers.Length > 0)

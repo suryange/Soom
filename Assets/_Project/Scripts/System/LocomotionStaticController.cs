@@ -5,48 +5,76 @@ public class LocomotionStateController : MonoBehaviour
     [Header("Locomotion Components")]
     public MonoBehaviour[] locomotionComponents;
 
+    private PlayerStateManager subscribedStateManager;
+
     private void Start()
     {
-        if (PlayerStateManager.Instance != null)
+        BindStateManager();
+        ApplyCurrentState();
+    }
+
+    private void Update()
+    {
+        // PlayerStateManager가 씬 전환 등으로 나중에 생성되거나 교체될 수 있다.
+        if (subscribedStateManager != PlayerStateManager.Instance)
         {
-            PlayerStateManager.Instance.OnStateEnter += HandleStateEnter;
+            BindStateManager();
+            ApplyCurrentState();
         }
     }
 
     private void OnDestroy()
     {
-        if (PlayerStateManager.Instance != null)
-        {
-            PlayerStateManager.Instance.OnStateEnter -= HandleStateEnter;
-        }
+        UnbindStateManager();
     }
 
-    // 상태가 변할 때마다 자동으로 호출됨
+    private void BindStateManager()
+    {
+        UnbindStateManager();
+
+        subscribedStateManager = PlayerStateManager.Instance;
+        if (subscribedStateManager != null)
+            subscribedStateManager.OnStateEnter += HandleStateEnter;
+    }
+
+    private void UnbindStateManager()
+    {
+        if (subscribedStateManager != null)
+            subscribedStateManager.OnStateEnter -= HandleStateEnter;
+
+        subscribedStateManager = null;
+    }
+
+    private void ApplyCurrentState()
+    {
+        // 상태 매니저가 아직 없다면 기본 플레이 상태로 보고 이동을 허용한다.
+        PlayerState state = subscribedStateManager != null
+            ? subscribedStateManager.CurrentState
+            : PlayerState.Idle;
+
+        HandleStateEnter(state);
+    }
+
     private void HandleStateEnter(PlayerState state)
     {
-        // 호흡 미션 중일 때 이동 불가
-        if (state == PlayerState.Interact || state == PlayerState.BreathingActive)
-        {
-            SetLocomotionActive(false);
-        }
-        else
-        {
-            // 그 외의 상태에서는 이동 허용
-            SetLocomotionActive(true);
-        }
+        bool shouldEnableLocomotion =
+            state != PlayerState.Interact &&
+            state != PlayerState.BreathingActive;
+
+        SetLocomotionActive(shouldEnableLocomotion);
     }
 
     private void SetLocomotionActive(bool isActive)
     {
-        foreach (var comp in locomotionComponents)
+        if (locomotionComponents == null)
+            return;
+
+        foreach (MonoBehaviour component in locomotionComponents)
         {
-            if (comp != null)
-            {
-                // 해당 컴포넌트의 체크박스를 끄거나 켭니다.
-                comp.enabled = isActive;
-            }
+            if (component != null && component.enabled != isActive)
+                component.enabled = isActive;
         }
 
-        Debug.Log($"[LocomotionStateController] 이동 기능 활성화 여부: {isActive}");
+        Debug.Log($"[LocomotionStateController] 이동 기능 활성화 여부: {isActive}", this);
     }
 }

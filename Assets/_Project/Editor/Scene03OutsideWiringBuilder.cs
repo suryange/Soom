@@ -120,12 +120,12 @@ internal static class Scene03OutsideWiringBuilder
         Undo.RegisterCreatedObjectUndo(go, "Create ClueObject Placeholder");
 
         var closeGo = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        closeGo.name = "messageClose";
+        closeGo.name = "memo_close";
         closeGo.transform.SetParent(go.transform, false);
         closeGo.transform.localScale = Vector3.one * 0.2f;
 
         var openGo = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        openGo.name = "messageOpen";
+        openGo.name = "memo_open";
         openGo.transform.SetParent(go.transform, false);
         openGo.transform.localScale = Vector3.one * 0.2f;
         openGo.SetActive(false);
@@ -144,14 +144,14 @@ internal static class Scene03OutsideWiringBuilder
         InteractableWorldUI worldUI, Transform[] waypoints, GameObject guidingLightTemplate,
         Transform spawnPoint, Transform postBreathPlayerSpawnPoint, BreathEventsSO events)
     {
-        var messageCloseTr = clue.transform.Find("messageClose");
-        var messageOpenTr = clue.transform.Find("messageOpen");
+        var messageCloseTr = clue.transform.Find("memo_close");
+        var messageOpenTr = clue.transform.Find("memo_open");
 
         if (messageCloseTr != null) hologram.messageClose = messageCloseTr.gameObject;
-        else Debug.LogWarning("[SOOM] ClueObject 하위에서 'messageClose'를 찾지 못했습니다. 수동으로 연결해주세요.");
+        else Debug.LogWarning("[SOOM] ClueObject 하위에서 'memo_close'를 찾지 못했습니다. 수동으로 연결해주세요.");
 
         if (messageOpenTr != null) hologram.messageOpen = messageOpenTr.gameObject;
-        else Debug.LogWarning("[SOOM] ClueObject 하위에서 'messageOpen'을 찾지 못했습니다. 수동으로 연결해주세요.");
+        else Debug.LogWarning("[SOOM] ClueObject 하위에서 'memo_open'을 찾지 못했습니다. 수동으로 연결해주세요.");
 
         hologram.breathEvents = events;
         hologram.interactableData = data;

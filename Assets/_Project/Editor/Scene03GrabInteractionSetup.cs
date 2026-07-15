@@ -57,9 +57,9 @@ internal static class Scene03GrabInteractionSetup
 
         ConfigureControllerAttach(clue.transform, hologram);
 
-        Transform messageOpen = clue.transform.Find("messageOpen");
+        Transform messageOpen = clue.transform.Find("memo_open");
         if (messageOpen == null)
-            throw new MissingReferenceException("ClueObject/messageOpen을 찾지 못했습니다.");
+            throw new MissingReferenceException("ClueObject/memo_open을 찾지 못했습니다.");
 
         GameObject controllerPromptPrefab =
             AssetDatabase.LoadAssetAtPath<GameObject>(ControllerPromptPrefabPath);

@@ -43,12 +43,12 @@ internal static class Scene03CluePhysicalSetup
             throw new MissingReferenceException("Scene 03에서 ClueObject를 찾지 못했습니다.");
         }
 
-        Transform messageClose = clue.transform.Find("messageClose");
-        Transform messageOpen = clue.transform.Find("messageOpen");
+        Transform messageClose = clue.transform.Find("memo_close");
+        Transform messageOpen = clue.transform.Find("memo_open");
         if (messageClose == null || messageOpen == null)
         {
             throw new MissingReferenceException(
-                "ClueObject 아래에 messageClose와 messageOpen이 모두 있어야 합니다.");
+                "ClueObject 아래에 memo_close와 memo_open이 모두 있어야 합니다.");
         }
 
         int interactableLayer = LayerMask.NameToLayer("Interactable");
