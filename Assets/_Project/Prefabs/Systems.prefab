@@ -115,6 +115,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36f1e6e086401434a8432cd943a8348b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SOOMSceneManager
+  fadeOutDuration: 0.5
+  fadeInDuration: 0.5
 --- !u!1 &2775075245313695465
 GameObject:
   m_ObjectHideFlags: 0

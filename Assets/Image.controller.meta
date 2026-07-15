@@ -1,15 +1,8 @@
 fileFormatVersion: 2
-<<<<<<<< HEAD:Assets/Image.controller.meta
 guid: f1498edf751026b468b5b202ee3fcc8b
 NativeFormatImporter:
   externalObjects: {}
   mainObjectFileID: 9100000
-========
-guid: 82b10f7307487451db87d796ae54d252
-NativeFormatImporter:
-  externalObjects: {}
-  mainObjectFileID: 8574412962073106934
->>>>>>>> main:Assets/NewLayer 1.terrainlayer.meta
   userData: 
   assetBundleName: 
   assetBundleVariant: 
