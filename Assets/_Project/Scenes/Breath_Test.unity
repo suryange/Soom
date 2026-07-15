@@ -1499,8 +1499,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InteractionDetector
   viewOrigin: {fileID: 1912099384}
-  detectionRadius: 5
-  viewAngle: 90
+  detectionRadius: 20
+  viewAngle: 180
   interactableLayer:
     serializedVersion: 2
     m_Bits: 64

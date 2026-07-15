@@ -8,6 +8,9 @@ using UnityEngine.InputSystem;
 /// </summary>
 public class TriggerInteractionInputBridge : MonoBehaviour
 {
+    private const string RightTriggerPath = "<XRController>{RightHand}/triggerPressed";
+    private const string MouseClickPath = "<Mouse>/leftButton";
+
     [Header("Input Actions")]
     [Tooltip("컨트롤러 트리거(Activate) 버튼 액션. 인스펙터에서 XRI 입력 액션을 연결하세요.")]
     public InputActionProperty triggerAction;
@@ -27,11 +30,22 @@ public class TriggerInteractionInputBridge : MonoBehaviour
 #endif
         }
 
-        if (triggerAction.action != null)
+        InputAction action = triggerAction.action;
+        if (action != null)
         {
-            triggerAction.action.Enable();
-            triggerAction.action.performed += OnTriggerPressed;
+            EnsureTriggerBindings(action);
+            action.Enable();
+            action.performed += OnTriggerPressed;
         }
+    }
+
+    private static void EnsureTriggerBindings(InputAction action)
+    {
+        if (action.bindings.Count > 0)
+            return;
+
+        action.AddBinding(RightTriggerPath);
+        action.AddBinding(MouseClickPath);
     }
 
     private void OnDisable()
