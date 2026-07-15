@@ -44,6 +44,11 @@ public class BreathCircleUI : MonoBehaviour
     [SerializeField] bool followMainCamera = true;
     [SerializeField] Vector3 cameraLocalPosition = new Vector3(0f, -0.08f, 0.75f);
 
+    [Header("Visibility")]
+    [Range(0f, 1f)] [SerializeField] float minimumOutlineAlpha = 0.95f;
+    [Range(0f, 1f)] [SerializeField] float minimumSlotAlpha = 0.8f;
+    [Range(0f, 1f)] [SerializeField] float minimumBeadAlpha = 1f;
+
     float _scaleVel;
     [Header("Runtime diagnostics (Read Only)")]
     [SerializeField] bool _eventChannelSubscribed;
@@ -67,6 +72,7 @@ public class BreathCircleUI : MonoBehaviour
         if (!group) group = GetComponent<CanvasGroup>();
         if (bead) _beadHomeLocalPos = bead.rectTransform.localPosition;
         EnsureSprites();
+        EnsureHighVisibility();
     }
 
     // The editor builder assigns in-memory procedural sprites that don't survive a scene reload
@@ -293,6 +299,39 @@ public class BreathCircleUI : MonoBehaviour
 
         UpdateCameraPlacement();
         EnsureSprites();
+        EnsureHighVisibility();
+    }
+
+    void EnsureHighVisibility()
+    {
+        SetMinimumAlpha(largeCircleOutline, minimumOutlineAlpha);
+        SetMinimumAlpha(smallCircleOutline, minimumOutlineAlpha);
+        SetMinimumAlpha(bead, minimumBeadAlpha);
+
+        if (slotRings != null)
+            foreach (Image ring in slotRings)
+                SetMinimumAlpha(ring, minimumSlotAlpha);
+
+        if (slotFills != null)
+            foreach (Image fill in slotFills)
+                SetMinimumAlpha(fill, minimumBeadAlpha);
+
+        if (group)
+        {
+            group.interactable = false;
+            group.blocksRaycasts = false;
+            group.ignoreParentGroups = true;
+        }
+    }
+
+    static void SetMinimumAlpha(Image image, float minimumAlpha)
+    {
+        if (!image) return;
+
+        Color color = image.color;
+        color.a = Mathf.Max(color.a, minimumAlpha);
+        image.color = color;
+        image.raycastTarget = false;
     }
 
     void UpdateCameraPlacement()

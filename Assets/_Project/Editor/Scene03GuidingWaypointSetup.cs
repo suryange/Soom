@@ -3,6 +3,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 
 /// <summary>
@@ -12,7 +13,8 @@ using UnityEngine.SceneManagement;
 internal static class Scene03GuidingWaypointSetup
 {
     private const string ScenePath = "Assets/_Project/Scenes/Scene_03_InGame_Outside.unity";
-    private const string PrefabPath = "Assets/PowerUp/Prefabs/PowerUpContainerYellowDollar.prefab";
+    private const string PrefabPath = "Assets/_Project/Prefabs/GuidingLight.prefab";
+    private const string MaterialPath = "Assets/_Project/Prefabs/GuidingLightGlow.mat";
     private const string WaypointRootName = "Scene03_GuidingWaypoints";
     private const string PrimaryDestinationName = "Fox_location";
     private const string FallbackDestinationName = "Fox_Encounter";
@@ -195,6 +197,31 @@ internal static class Scene03GuidingWaypointSetup
             controller.maxLeadDistance = 7f;
             controller.resumeLeadDistance = 4.5f;
             controller.turnSpeed = 360f;
+            controller.useSineMovement = true;
+            controller.sineAmplitude = 0.75f;
+            controller.sineWavelength = 5f;
+
+            Transform glow = prefabRoot.transform.Find("GlowOrb");
+            if (glow != null)
+            {
+                glow.localScale = Vector3.one * 0.55f;
+                MeshRenderer renderer = glow.GetComponent<MeshRenderer>();
+                if (renderer != null)
+                {
+                    renderer.sharedMaterial = AssetDatabase.LoadAssetAtPath<Material>(MaterialPath);
+                    renderer.shadowCastingMode = ShadowCastingMode.Off;
+                    renderer.receiveShadows = false;
+                }
+            }
+
+            Light light = prefabRoot.GetComponentInChildren<Light>(true);
+            if (light != null)
+            {
+                light.color = new Color(1f, 0.82f, 0.38f);
+                light.intensity = 3.2f;
+                light.range = 6f;
+                light.shadows = LightShadows.None;
+            }
             EditorUtility.SetDirty(controller);
             PrefabUtility.SaveAsPrefabAsset(prefabRoot, PrefabPath);
         }

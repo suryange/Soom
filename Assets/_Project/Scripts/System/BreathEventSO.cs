@@ -40,5 +40,14 @@ public class BreathEventsSO : ScriptableObject
         OnBreathLoopCompleted?.Invoke(currentLoopCount);
     }
 
+    public void ResetSession()
+    {
+        currentBreathValue = 0f;
+        currentLoopCount = 0;
+        breathValueVersion++;
+        loopVersion++;
+        OnBreathValueNormalized?.Invoke(0f);
+    }
+
     public void RaiseMissionSuccess() => OnMissionSuccess?.Invoke();
 }

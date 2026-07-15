@@ -11,6 +11,13 @@ public enum PlayerState
     BreathingActive
 }
 
+public enum BreathMissionId
+{
+    None,
+    GuidingLight,
+    Sandstorm
+}
+
 public class PlayerStateManager : MonoBehaviour
 {
     public static PlayerStateManager Instance { get; private set; }
@@ -18,6 +25,10 @@ public class PlayerStateManager : MonoBehaviour
     [Header("현재 Player State")]
     [SerializeField] private PlayerState currentState = PlayerState.Idle;
     public PlayerState CurrentState => currentState;
+
+    [Header("현재 호흡 미션 소유자")]
+    [SerializeField] private BreathMissionId activeBreathMission = BreathMissionId.None;
+    public BreathMissionId ActiveBreathMission => activeBreathMission;
 
     // 특정 상태에 진입했을 때 방송
     public event Action<PlayerState> OnStateEnter;
@@ -103,6 +114,34 @@ public class PlayerStateManager : MonoBehaviour
         {
             ChangeState(PlayerState.Idle);
         }
+    }
+
+    public bool TryAcquireBreathMission(BreathMissionId missionId)
+    {
+        if (missionId == BreathMissionId.None)
+            return false;
+
+        if (activeBreathMission != BreathMissionId.None && activeBreathMission != missionId)
+        {
+            Debug.LogWarning(
+                $"[PlayerStateManager] {missionId} 미션이 소유권을 요청했지만 " +
+                $"{activeBreathMission} 미션이 이미 활성 상태입니다.");
+            return false;
+        }
+
+        activeBreathMission = missionId;
+        return true;
+    }
+
+    public bool IsBreathMissionOwner(BreathMissionId missionId)
+    {
+        return missionId != BreathMissionId.None && activeBreathMission == missionId;
+    }
+
+    public void ReleaseBreathMission(BreathMissionId missionId)
+    {
+        if (missionId != BreathMissionId.None && activeBreathMission == missionId)
+            activeBreathMission = BreathMissionId.None;
     }
 
     /// 호흡 3회 성공 시 BreathCore 등에서 이 함수를 호출.

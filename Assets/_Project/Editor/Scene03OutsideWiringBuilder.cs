@@ -25,7 +25,7 @@ internal static class Scene03OutsideWiringBuilder
 
     const string InteractablesFolder = "Assets/_Project/Resources/Interactables";
     const string UnknownDeviceAssetPath = InteractablesFolder + "/UnknownDevice.asset";
-    const string GuidingLightPrefabPath = "Assets/PowerUp/Prefabs/PowerUpContainerYellowDollar.prefab";
+    const string GuidingLightPrefabPath = "Assets/_Project/Prefabs/GuidingLight.prefab";
 
     [MenuItem("SOOM/Build Scene03 Outside Wiring")]
     public static void Build()
@@ -60,7 +60,9 @@ internal static class Scene03OutsideWiringBuilder
         if (guidingLightTemplate == null)
             guidingLightTemplate = BuildGuidingLightTemplate();
         Transform spawnPoint = EnsureSpawnPoint(clue.transform);
-        WireHologram(hologram, clue, data, worldUI, waypoints, guidingLightTemplate, spawnPoint, events);
+        Transform postBreathPlayerSpawnPoint = EnsurePostBreathPlayerSpawnPoint(spawnPoint, waypoints);
+        WireHologram(hologram, clue, data, worldUI, waypoints, guidingLightTemplate, spawnPoint,
+            postBreathPlayerSpawnPoint, events);
         Scene03GrabInteractionSetup.Setup(activeScene);
 
         BreathCircleUI breathCircleUI = BuildBreathCircleUI(cam, events);
@@ -140,7 +142,7 @@ internal static class Scene03OutsideWiringBuilder
 
     static void WireHologram(HologramMessage hologram, GameObject clue, InteractableDataSO data,
         InteractableWorldUI worldUI, Transform[] waypoints, GameObject guidingLightTemplate,
-        Transform spawnPoint, BreathEventsSO events)
+        Transform spawnPoint, Transform postBreathPlayerSpawnPoint, BreathEventsSO events)
     {
         var messageCloseTr = clue.transform.Find("messageClose");
         var messageOpenTr = clue.transform.Find("messageOpen");
@@ -157,6 +159,7 @@ internal static class Scene03OutsideWiringBuilder
         hologram.missionWaypoints = waypoints;
         hologram.guidingLightPrefab = guidingLightTemplate;
         hologram.spawnPoint = spawnPoint;
+        hologram.postBreathPlayerSpawnPoint = postBreathPlayerSpawnPoint;
 
         EditorUtility.SetDirty(hologram);
     }
@@ -170,6 +173,33 @@ internal static class Scene03OutsideWiringBuilder
         Undo.RegisterCreatedObjectUndo(go, "Create Guiding Light Spawn Point");
         go.transform.SetParent(clueTransform, false);
         return go.transform;
+    }
+
+    static Transform EnsurePostBreathPlayerSpawnPoint(Transform guidingSpawnPoint, Transform[] waypoints)
+    {
+        GameObject existing = GameObject.Find("PostBreathPlayerSpawnPoint");
+        Transform target = existing != null ? existing.transform : null;
+        if (target == null)
+        {
+            var go = new GameObject("PostBreathPlayerSpawnPoint");
+            Undo.RegisterCreatedObjectUndo(go, "Create Post Breath Player Spawn Point");
+            target = go.transform;
+        }
+
+        Vector3 forward = Vector3.forward;
+        if (waypoints != null && waypoints.Length > 0 && waypoints[0] != null)
+        {
+            forward = Vector3.ProjectOnPlane(
+                waypoints[0].position - guidingSpawnPoint.position, Vector3.up).normalized;
+            if (forward.sqrMagnitude < 0.001f)
+                forward = Vector3.forward;
+        }
+
+        Vector3 floorSpawn = guidingSpawnPoint.position;
+        floorSpawn.y = 0f;
+        target.SetPositionAndRotation(floorSpawn + forward * 2.2f,
+            Quaternion.LookRotation(forward, Vector3.up));
+        return target;
     }
 
     // ------------------------------------------------------------ 감지 UI (3.2)
@@ -240,7 +270,7 @@ internal static class Scene03OutsideWiringBuilder
         var largeOutline = MakeImage(canvasGo.transform, "LargeOutline", new Vector2(700f, 700f),
             CircleSpriteFactory.CreateRing(Color.white, 0.06f), Color.white);
         var smallOutline = MakeImage(canvasGo.transform, "SmallOutline", new Vector2(280f, 280f),
-            CircleSpriteFactory.CreateRing(Color.white, 0.1f), new Color(1f, 1f, 1f, 0.6f));
+            CircleSpriteFactory.CreateRing(Color.white, 0.1f), new Color(1f, 1f, 1f, 0.95f));
         var bead = MakeImage(canvasGo.transform, "Bead", new Vector2(700f, 700f),
             CircleSpriteFactory.CreateFilledCircle(Color.white), new Color(1f, 0.85f, 0.4f, 1f));
         bead.rectTransform.localScale = Vector3.one * 0.4f;
@@ -269,7 +299,7 @@ internal static class Scene03OutsideWiringBuilder
             var le = slotGo.GetComponent<LayoutElement>();
             le.preferredWidth = le.preferredHeight = 130f;
 
-            var ring = MakeImage(slotGo.transform, "Ring", new Vector2(130f, 130f), ringSprite, new Color(1f, 1f, 1f, 0.35f));
+            var ring = MakeImage(slotGo.transform, "Ring", new Vector2(130f, 130f), ringSprite, new Color(1f, 1f, 1f, 0.8f));
             var fill = MakeImage(slotGo.transform, "Fill", new Vector2(110f, 110f), fillSprite, new Color(1f, 0.85f, 0.4f, 1f));
             fill.enabled = false;
             slotRings[i] = ring;
@@ -284,6 +314,10 @@ internal static class Scene03OutsideWiringBuilder
             so.FindProperty("smallCircleOutline").objectReferenceValue = smallOutline;
             so.FindProperty("bead").objectReferenceValue = bead;
             so.FindProperty("group").objectReferenceValue = group;
+            so.FindProperty("cameraLocalPosition").vector3Value = new Vector3(0f, -0.08f, 0.65f);
+            so.FindProperty("minimumOutlineAlpha").floatValue = 0.95f;
+            so.FindProperty("minimumSlotAlpha").floatValue = 0.8f;
+            so.FindProperty("minimumBeadAlpha").floatValue = 1f;
 
             var rings = so.FindProperty("slotRings");
             rings.arraySize = slotCount;

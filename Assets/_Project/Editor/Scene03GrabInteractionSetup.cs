@@ -17,6 +17,7 @@ internal static class Scene03GrabInteractionSetup
     private const string GrabUiName = "MessageViewingPromptUI";
     private const string LegacyGrabUiName = "GrabConfirmUI";
     private const string ReopenUiName = "ReopenPromptUI";
+    private const string ControllerPromptPrefabPath = "Assets/UI component/08 interact_button.prefab";
     private const string GrabInstruction = "메시지를 확인한 뒤 G를 놓으세요";
     private const string ReopenInstruction = "G: 메시지 열기";
 
@@ -60,27 +61,53 @@ internal static class Scene03GrabInteractionSetup
         if (messageOpen == null)
             throw new MissingReferenceException("ClueObject/messageOpen을 찾지 못했습니다.");
 
-        GameObject grabUi = FindOrBuildPrompt(
-            messageOpen, GrabUiName, LegacyGrabUiName, GrabInstruction, new Vector3(0f, 1.25f, 0f));
-        GameObject reopenUi = FindOrBuildPrompt(
-            messageOpen, ReopenUiName, null, ReopenInstruction, new Vector3(0f, 1.6f, 0f));
+        GameObject controllerPromptPrefab =
+            AssetDatabase.LoadAssetAtPath<GameObject>(ControllerPromptPrefabPath);
+        if (controllerPromptPrefab == null)
+            throw new MissingReferenceException($"조작 안내 프리팹을 찾지 못했습니다: {ControllerPromptPrefabPath}");
 
-        grabUi.SetActive(false);
-        reopenUi.SetActive(false);
-        hologram.grabConfirmUI = grabUi;
-        hologram.reopenPromptUI = reopenUi;
+        Transform rightController = FindRightController(scene);
+        if (rightController == null)
+            throw new MissingReferenceException("Scene 03에서 Right Controller를 찾지 못했습니다.");
+
+        DisableLegacyPrompt(messageOpen, GrabUiName);
+        DisableLegacyPrompt(messageOpen, LegacyGrabUiName);
+        DisableLegacyPrompt(messageOpen, ReopenUiName);
+
+        hologram.grabConfirmUI = null;
+        hologram.reopenPromptUI = null;
+        hologram.controllerPromptPrefab = controllerPromptPrefab;
+        hologram.rightController = rightController;
 
         EditorUtility.SetDirty(hologram);
-        EditorUtility.SetDirty(grabUi);
-        EditorUtility.SetDirty(reopenUi);
         ValidateWiring(hologram);
         EditorSceneManager.MarkSceneDirty(scene);
-        Selection.activeGameObject = reopenUi;
+        Selection.activeGameObject = clue;
 
         Debug.Log(
             "[Scene03GrabInteractionSetup] 완료: 좌/우 Near-Far Ray에 Interactable Layer 추가, " +
             "Far Attach=Near/ClueAttachPoint, " +
-            "messageOpen/MessageViewingPromptUI/ReopenPromptUI 생성 및 전체 참조 검증.");
+            "08 interact_button/Right Controller 연결 및 전체 참조 검증.");
+    }
+
+    private static void DisableLegacyPrompt(Transform parent, string promptName)
+    {
+        Transform prompt = parent.Find(promptName);
+        if (prompt != null)
+            prompt.gameObject.SetActive(false);
+    }
+
+    private static Transform FindRightController(Scene scene)
+    {
+        Transform[] transforms = Object.FindObjectsByType<Transform>(
+            FindObjectsInactive.Include, FindObjectsSortMode.None);
+        foreach (Transform candidate in transforms)
+        {
+            if (candidate != null && candidate.gameObject.scene == scene && candidate.name == "Right Controller")
+                return candidate;
+        }
+
+        return null;
     }
 
     private static void ConfigureControllerAttach(Transform clue, HologramMessage hologram)
@@ -214,8 +241,8 @@ internal static class Scene03GrabInteractionSetup
     {
         if (hologram.messageClose == null || hologram.messageOpen == null)
             throw new MissingReferenceException("HologramMessage의 messageClose/messageOpen 참조가 비어 있습니다.");
-        if (hologram.grabConfirmUI == null || hologram.reopenPromptUI == null)
-            throw new MissingReferenceException("HologramMessage의 Grab/Reopen UI 참조가 비어 있습니다.");
+        if (hologram.controllerPromptPrefab == null || hologram.rightController == null)
+            throw new MissingReferenceException("HologramMessage의 08 interact_button/Right Controller 참조가 비어 있습니다.");
         if (hologram.breathEvents == null)
             throw new MissingReferenceException("HologramMessage.breathEvents 참조가 비어 있습니다.");
         if (hologram.guidingLightPrefab == null)

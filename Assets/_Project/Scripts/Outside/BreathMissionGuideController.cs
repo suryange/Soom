@@ -81,7 +81,8 @@ public class BreathMissionGuideController : MonoBehaviour
     private void SyncCurrentState()
     {
         bool shouldShow = PlayerStateManager.Instance != null &&
-                          PlayerStateManager.Instance.CurrentState == PlayerState.BreathingActive;
+                          PlayerStateManager.Instance.CurrentState == PlayerState.BreathingActive &&
+                          PlayerStateManager.Instance.IsBreathMissionOwner(BreathMissionId.GuidingLight);
         SetBreathCircleVisible(shouldShow);
     }
 
@@ -136,6 +137,8 @@ public class BreathMissionGuideController : MonoBehaviour
     private void HandleStateEnter(PlayerState state)
     {
         if (state != PlayerState.BreathingActive) return;
+        if (PlayerStateManager.Instance == null ||
+            !PlayerStateManager.Instance.IsBreathMissionOwner(BreathMissionId.GuidingLight)) return;
 
         SetBreathCircleVisible(true);
         MissionGuideTextUI.Instance?.ShowMessage(breathingGuideMessage);
@@ -148,7 +151,7 @@ public class BreathMissionGuideController : MonoBehaviour
         SetBreathCircleVisible(false);
     }
 
-    private void HandleGuidingLightSpawned()
+    private void HandleGuidingLightSpawned(GuidingLightController spawnedLight)
     {
         MissionGuideTextUI.Instance?.ShowMessage(guidingLightMessage);
     }

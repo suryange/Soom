@@ -6,6 +6,9 @@ using System.Collections.Generic;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
 using UnityEngine.XR.Interaction.Toolkit.Interactors.Visuals;
 using UnityEngine.XR.Interaction.Toolkit.Attachment;
+using TMPro;
+using UnityEngine.UI;
+using Unity.XR.CoreUtils;
 
 [RequireComponent(typeof(XRGrabInteractable))]
 public class HologramMessage : MonoBehaviour, IInteractable
@@ -18,7 +21,7 @@ public class HologramMessage : MonoBehaviour, IInteractable
         MissionStarted
     }
 
-    public event System.Action OnGuidingLightSpawned;
+    public event System.Action<GuidingLightController> OnGuidingLightSpawned;
 
     [Header("Hierarchy Objects")]
     public GameObject hologramUI;     // 접근 시 뜨는 UI
@@ -26,6 +29,12 @@ public class HologramMessage : MonoBehaviour, IInteractable
     public GameObject messageOpen;    // 열려있는 쪽지 모델링 
     public GameObject grabConfirmUI;  // 열린 메시지를 들고 있을 때 표시할 확인 안내 UI
     public GameObject reopenPromptUI; // 열린 메시지를 Ray로 가리킬 때 표시할 재확인 안내 UI
+
+    [Header("Right Controller Interaction Prompt")]
+    public GameObject controllerPromptPrefab;
+    public Transform rightController;
+    [SerializeField] private Vector3 controllerPromptLocalPosition = new(0f, 0.12f, 0.08f);
+    [SerializeField] private float controllerPromptScale = 0.00065f;
 
     [Header("Controller Grab Attach")]
     public Transform clueAttachPoint;
@@ -36,6 +45,8 @@ public class HologramMessage : MonoBehaviour, IInteractable
     public BreathEventsSO breathEvents;
     public GameObject guidingLightPrefab;
     public Transform spawnPoint;
+    public Transform postBreathPlayerSpawnPoint;
+    public XROrigin xrOrigin;
     public Transform[] missionWaypoints;
 
     [Header("World UI / Data (3.2, 3.3 배선)")]
@@ -51,6 +62,13 @@ public class HologramMessage : MonoBehaviour, IInteractable
     private bool isReturning;
     private bool ownsActiveBreathingMission;
     private bool detectionRequested;
+    private bool grabConfirmRequested;
+    private bool reopenPromptRequested;
+    private bool breathMissionPromptRequested;
+    private bool playerRelocatedAfterBreath;
+    private GameObject controllerPromptInstance;
+    private TMP_Text controllerButtonText;
+    private TMP_Text controllerMessageText;
     private readonly HashSet<IXRHoverInteractor> rayHoverInteractors = new();
     private Vector3 initialWorldPosition;
     private Quaternion initialWorldRotation;
@@ -66,6 +84,7 @@ public class HologramMessage : MonoBehaviour, IInteractable
         initialWorldRotation = transform.rotation;
         initialParent = transform.parent;
         EnsureDetectionIndicatorTracking();
+        EnsureControllerPrompt();
 
         progressState = messageOpen != null && messageOpen.activeSelf
             ? MessageProgress.OpenedReady
@@ -78,6 +97,7 @@ public class HologramMessage : MonoBehaviour, IInteractable
             worldUI.gameObject.SetActive(false);
         SetGrabConfirmUI(false);
         SetReopenPromptUI(false);
+        SetBreathMissionPromptVisible(false);
     }
 
     private void OnEnable()
@@ -108,6 +128,7 @@ public class HologramMessage : MonoBehaviour, IInteractable
         if (progressState == MessageProgress.MissionStarted)
             progressState = MessageProgress.OpenedReady;
         ownsActiveBreathingMission = false;
+        PlayerStateManager.Instance?.ReleaseBreathMission(BreathMissionId.GuidingLight);
 
         if (grabInteractable != null)
         {
@@ -127,6 +148,7 @@ public class HologramMessage : MonoBehaviour, IInteractable
         SetDetectionDescription(false);
         SetGrabConfirmUI(false);
         SetReopenPromptUI(false);
+        SetBreathMissionPromptVisible(false);
     }
 
     // ==========================================
@@ -190,7 +212,7 @@ public class HologramMessage : MonoBehaviour, IInteractable
             if (messageOpen != null) messageOpen.SetActive(true);
 
             // 첫 Grab은 메시지를 열고, 첫 Release를 확인 완료 입력으로 사용한다.
-            SetGrabConfirmUI(true);
+            // G 안내는 Select 전 Far Ray Hover 중에만 표시한다.
             return;
         }
 
@@ -202,7 +224,7 @@ public class HologramMessage : MonoBehaviour, IInteractable
             PlayerStateManager.Instance.ChangeState(PlayerState.Interact);
         }
 
-        SetGrabConfirmUI(true);
+        // 재확인 G 안내도 Select가 시작되면 즉시 숨긴다.
     }
 
     private void OnMessageReleased(SelectExitEventArgs args)
@@ -378,19 +400,22 @@ public class HologramMessage : MonoBehaviour, IInteractable
         }
     }
 
-    private bool CanShowReopenPrompt()
+    private bool CanShowRayGrabPrompt()
     {
-        return !isReturning &&
-               progressState == MessageProgress.MissionStarted &&
-               messageOpen != null && messageOpen.activeSelf &&
-               grabInteractable != null && !grabInteractable.isSelected &&
-               PlayerStateManager.Instance != null &&
-               PlayerStateManager.Instance.CurrentState == PlayerState.MissionReady;
+        if (isReturning || progressState == MessageProgress.Viewing ||
+            grabInteractable == null || grabInteractable.isSelected)
+            return false;
+
+        bool closedMessageAvailable = progressState == MessageProgress.Closed &&
+                                      messageClose != null && messageClose.activeSelf;
+        bool openMessageAvailable = progressState != MessageProgress.Closed &&
+                                    messageOpen != null && messageOpen.activeSelf;
+        return closedMessageAvailable || openMessageAvailable;
     }
 
     private void RefreshReopenPrompt()
     {
-        SetReopenPromptUI(rayHoverInteractors.Count > 0 && CanShowReopenPrompt());
+        SetReopenPromptUI(rayHoverInteractors.Count > 0 && CanShowRayGrabPrompt());
     }
 
     private IEnumerator ReturnToInitialPoseAfterRelease(
@@ -514,19 +539,147 @@ public class HologramMessage : MonoBehaviour, IInteractable
             ownsActiveBreathingMission = false;
             if (progressState == MessageProgress.MissionStarted)
                 progressState = MessageProgress.OpenedReady;
+            PlayerStateManager.Instance?.ReleaseBreathMission(BreathMissionId.GuidingLight);
         }
     }
 
     private void SetGrabConfirmUI(bool visible)
     {
-        if (grabConfirmUI != null)
-            grabConfirmUI.SetActive(visible);
+        grabConfirmRequested = visible;
+        if (grabConfirmUI != null && grabConfirmUI.activeSelf)
+            grabConfirmUI.SetActive(false);
+        RefreshControllerPrompt();
     }
 
     private void SetReopenPromptUI(bool visible)
     {
-        if (reopenPromptUI != null)
-            reopenPromptUI.SetActive(visible);
+        reopenPromptRequested = visible;
+        if (reopenPromptUI != null && reopenPromptUI.activeSelf)
+            reopenPromptUI.SetActive(false);
+        RefreshControllerPrompt();
+    }
+
+    public void SetBreathMissionPromptVisible(bool visible)
+    {
+        breathMissionPromptRequested = visible;
+        RefreshControllerPrompt();
+    }
+
+    private void EnsureControllerPrompt()
+    {
+        if (controllerPromptInstance != null)
+            return;
+
+        if (rightController == null)
+            rightController = FindSceneTransform("Right Controller");
+
+        if (rightController == null)
+        {
+            Debug.LogWarning("[HologramMessage] Right Controller를 찾지 못해 조작 안내 UI를 표시할 수 없습니다.", this);
+            return;
+        }
+
+        Transform existing = rightController.Find("Scene03InteractionPrompt");
+        if (existing != null)
+        {
+            controllerPromptInstance = existing.gameObject;
+        }
+        else
+        {
+            if (controllerPromptPrefab == null)
+            {
+                Debug.LogWarning("[HologramMessage] 08 interact_button 프리팹 참조가 비어 있습니다.", this);
+                return;
+            }
+
+            controllerPromptInstance = Instantiate(controllerPromptPrefab, rightController, false);
+            controllerPromptInstance.name = "Scene03InteractionPrompt";
+        }
+
+        RectTransform promptRect = controllerPromptInstance.GetComponent<RectTransform>();
+        if (promptRect != null)
+        {
+            promptRect.localPosition = controllerPromptLocalPosition;
+            promptRect.localRotation = Quaternion.identity;
+            promptRect.localScale = Vector3.one * controllerPromptScale;
+        }
+
+        Canvas canvas = controllerPromptInstance.GetComponent<Canvas>();
+        if (canvas != null)
+        {
+            canvas.renderMode = RenderMode.WorldSpace;
+            canvas.worldCamera = Camera.main;
+            canvas.sortingOrder = 50;
+        }
+
+        if (controllerPromptInstance.GetComponent<FaceCamera>() == null)
+            controllerPromptInstance.AddComponent<FaceCamera>();
+
+        TMP_Text[] promptTexts = controllerPromptInstance.GetComponentsInChildren<TMP_Text>(true);
+        foreach (TMP_Text promptText in promptTexts)
+        {
+            if (promptText.name == "Button")
+                controllerButtonText = promptText;
+            else if (promptText.name == "Message")
+                controllerMessageText = promptText;
+        }
+        if (controllerButtonText == null || controllerMessageText == null)
+        {
+            Debug.LogError("[HologramMessage] 08 interact_button에서 Button/Message 텍스트를 찾지 못했습니다.", this);
+            controllerPromptInstance.SetActive(false);
+            return;
+        }
+
+        controllerPromptInstance.SetActive(false);
+    }
+
+    private void RefreshControllerPrompt()
+    {
+        bool showMessagePrompt = grabConfirmRequested || reopenPromptRequested;
+        bool shouldShow = showMessagePrompt || breathMissionPromptRequested;
+
+        // 비활성화/씬 종료 중에는 Right Controller가 먼저 파괴될 수 있다.
+        // 숨김 요청에서 프롬프트를 다시 탐색하거나 생성하지 않는다.
+        if (!shouldShow)
+        {
+            if (controllerPromptInstance != null && controllerPromptInstance.activeSelf)
+                controllerPromptInstance.SetActive(false);
+            return;
+        }
+
+        EnsureControllerPrompt();
+        if (controllerPromptInstance == null || controllerButtonText == null || controllerMessageText == null)
+            return;
+
+        if (showMessagePrompt)
+        {
+            controllerButtonText.text = "G";
+            controllerMessageText.text = "메세지 잡기";
+            controllerPromptInstance.SetActive(true);
+        }
+        else if (breathMissionPromptRequested)
+        {
+            controllerButtonText.text = "B";
+            controllerMessageText.text = "호흡 미션";
+            controllerPromptInstance.SetActive(true);
+        }
+        else
+        {
+            controllerPromptInstance.SetActive(false);
+        }
+    }
+
+    private static Transform FindSceneTransform(string objectName)
+    {
+        Transform[] transforms = FindObjectsByType<Transform>(
+            FindObjectsInactive.Include, FindObjectsSortMode.None);
+        foreach (Transform candidate in transforms)
+        {
+            if (candidate != null && candidate.name == objectName && candidate.gameObject.scene.IsValid())
+                return candidate;
+        }
+
+        return null;
     }
 
     // ==========================================
@@ -539,10 +692,17 @@ public class HologramMessage : MonoBehaviour, IInteractable
         if (PlayerStateManager.Instance != null)
         {
             SetGrabConfirmUI(false);
+            if (!PlayerStateManager.Instance.TryAcquireBreathMission(BreathMissionId.GuidingLight))
+            {
+                Debug.LogWarning("[HologramMessage] 다른 호흡 콘텐츠가 진행 중이어서 미션을 준비할 수 없습니다.", this);
+                return;
+            }
+
             PlayerStateManager.Instance.SetMissionZone(true);
 
             if (PlayerStateManager.Instance.CurrentState != PlayerState.MissionReady)
             {
+                PlayerStateManager.Instance.ReleaseBreathMission(BreathMissionId.GuidingLight);
                 Debug.LogWarning("[HologramMessage] 첫 Release를 확인했지만 MissionReady 전환이 거부되었습니다.");
                 return;
             }
@@ -563,7 +723,8 @@ public class HologramMessage : MonoBehaviour, IInteractable
     private void OnBreathingMissionSuccess()
     {
         bool breathingIsActive = PlayerStateManager.Instance != null &&
-                                 PlayerStateManager.Instance.CurrentState == PlayerState.BreathingActive;
+                                 PlayerStateManager.Instance.CurrentState == PlayerState.BreathingActive &&
+                                 PlayerStateManager.Instance.IsBreathMissionOwner(BreathMissionId.GuidingLight);
         bool canConsumeReward = progressState == MessageProgress.MissionStarted &&
                                 (ownsActiveBreathingMission || breathingIsActive);
 
@@ -583,6 +744,7 @@ public class HologramMessage : MonoBehaviour, IInteractable
         // 공유 이벤트 채널에서 같은 성공이 중복 방송돼도 보상은 한 번만 처리한다.
         ownsActiveBreathingMission = false;
         progressState = MessageProgress.OpenedReady;
+        PlayerStateManager.Instance?.ReleaseBreathMission(BreathMissionId.GuidingLight);
 
         if (guidingLightPrefab == null)
         {
@@ -590,10 +752,18 @@ public class HologramMessage : MonoBehaviour, IInteractable
             return;
         }
 
-        // 빛무리 생성 및 출발 (spawnPoint 미할당 시 이 오브젝트 위치로 폴백)
-        Vector3 spawnPosition = spawnPoint != null ? spawnPoint.position : transform.position;
+        // Guiding Light는 첫 번째 Waypoint에서 시작한다.
+        // 경로가 비어 있을 때만 기존 spawnPoint 또는 단서 위치로 폴백한다.
+        Transform firstWaypoint = missionWaypoints != null && missionWaypoints.Length > 0
+            ? missionWaypoints[0]
+            : null;
+        Vector3 spawnPosition = firstWaypoint != null
+            ? firstWaypoint.position
+            : spawnPoint != null ? spawnPoint.position : transform.position;
         GameObject lightInstance = Instantiate(guidingLightPrefab, spawnPosition, Quaternion.identity);
         lightInstance.SetActive(true); // guidingLightPrefab이 씬 내 비활성 템플릿이어도 인스턴스는 항상 켜서 스폰
+
+        RelocatePlayerAfterBreath();
 
         // PowerUp 파티클이 에셋의 이전 재생 상태와 무관하게 즉시 보이도록 강제 재생한다.
         foreach (ParticleSystem particles in lightInstance.GetComponentsInChildren<ParticleSystem>(true))
@@ -612,7 +782,7 @@ public class HologramMessage : MonoBehaviour, IInteractable
             Debug.Log(
                 $"[HologramMessage] 빛무리 스폰 완료: {lightInstance.name}, " +
                 $"Position={spawnPosition}, Waypoints={(missionWaypoints != null ? missionWaypoints.Length : 0)}", this);
-            OnGuidingLightSpawned?.Invoke();
+            OnGuidingLightSpawned?.Invoke(lightController);
         }
         else
         {
@@ -620,5 +790,59 @@ public class HologramMessage : MonoBehaviour, IInteractable
         }
 
         // 미션 소유 상태는 성공 처리 시작 시 이미 소비되어 중복 스폰되지 않는다.
+    }
+
+    private void RelocatePlayerAfterBreath()
+    {
+        if (playerRelocatedAfterBreath)
+            return;
+
+        if (postBreathPlayerSpawnPoint == null)
+        {
+            Debug.LogWarning("[HologramMessage] PostBreathPlayerSpawnPoint 참조가 없어 플레이어를 이동하지 않습니다.", this);
+            return;
+        }
+
+        if (xrOrigin == null)
+            xrOrigin = FindFirstObjectByType<XROrigin>(FindObjectsInactive.Include);
+        if (xrOrigin == null || xrOrigin.Camera == null)
+        {
+            Debug.LogWarning("[HologramMessage] XROrigin 또는 XR Camera를 찾지 못해 플레이어를 이동하지 않습니다.", this);
+            return;
+        }
+
+        CharacterController characterController = xrOrigin.GetComponent<CharacterController>();
+        bool controllerWasEnabled = characterController != null && characterController.enabled;
+        if (controllerWasEnabled)
+            characterController.enabled = false;
+
+        Vector3 destinationUp = postBreathPlayerSpawnPoint.up;
+        Vector3 destinationForward = Vector3.ProjectOnPlane(
+            postBreathPlayerSpawnPoint.forward, destinationUp).normalized;
+        if (destinationForward.sqrMagnitude < 0.001f)
+            destinationForward = Vector3.ProjectOnPlane(Vector3.forward, destinationUp).normalized;
+
+        xrOrigin.MatchOriginUpCameraForward(destinationUp, destinationForward);
+
+        float currentHeadHeight = Mathf.Max(
+            0f,
+            Vector3.Dot(xrOrigin.Camera.transform.position - xrOrigin.transform.position, destinationUp));
+        Vector3 desiredCameraPosition = postBreathPlayerSpawnPoint.position +
+                                        destinationUp * currentHeadHeight;
+        bool moved = xrOrigin.MoveCameraToWorldLocation(desiredCameraPosition);
+
+        if (controllerWasEnabled)
+            characterController.enabled = true;
+
+        if (moved)
+        {
+            playerRelocatedAfterBreath = true;
+            Debug.Log(
+                $"[HologramMessage] 호흡 완료 플레이어 이동: {postBreathPlayerSpawnPoint.position}", this);
+        }
+        else
+        {
+            Debug.LogWarning("[HologramMessage] XROrigin 카메라 위치 이동에 실패했습니다.", this);
+        }
     }
 }

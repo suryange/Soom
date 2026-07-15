@@ -1,10 +1,11 @@
 using UnityEngine;
+using Unity.XR.CoreUtils;
 
 /// <summary>
 /// 모래바람 구역 진입 감지 (기능 명세 4.1).
 /// Box Collider(Is Trigger) 구역에 플레이어가 들어오면
-///  1) PlayerStateManager.SetMissionZone(true) 호출로 미션 대기 상태 진입
-///  2) SandstormController에 구역 진입을 통지해 챕터/구역 텍스트 UI 표시 및 폭풍 연출 시작
+///  1) SandstormController에 구역 진입을 통지해 챕터/구역 텍스트 UI 표시 및 폭풍 연출 시작
+///  2) 상승 연출이 끝난 뒤 Controller가 미션 대기 상태를 활성화
 /// 를 담당한다. 실제 폭풍 연출/호흡 시퀀스 로직은 전부 SandstormController가 소유하고,
 /// 이 컴포넌트는 순수하게 "트리거 감지 + 통지" 역할만 한다.
 /// </summary>
@@ -32,15 +33,9 @@ public class SandstormZoneTrigger : MonoBehaviour
     private void OnTriggerEnter(Collider other)
     {
         if (hasEntered && triggerOnce) return;
-        if (other == null || !other.CompareTag(playerTag)) return;
+        if (!IsPlayerCollider(other)) return;
 
         hasEntered = true;
-
-        // 4.1: 미션 구역 진입 상태로 전이 (PlayerStateManager 싱글턴 존재 여부 방어)
-        if (PlayerStateManager.Instance != null)
-        {
-            PlayerStateManager.Instance.SetMissionZone(true);
-        }
 
         // 4.1~4.2: 챕터/구역 UI 노출 및 모래폭풍 연출 시작 통지
         if (sandstormController != null)
@@ -51,6 +46,18 @@ public class SandstormZoneTrigger : MonoBehaviour
         {
             Debug.LogWarning("[SandstormZoneTrigger] sandstormController가 연결되어 있지 않습니다.", this);
         }
+    }
+
+    private bool IsPlayerCollider(Collider other)
+    {
+        if (other == null) return false;
+
+        if (!string.IsNullOrWhiteSpace(playerTag) && other.CompareTag(playerTag))
+            return true;
+
+        // XR Origin은 여러 자식 Collider를 사용할 수 있으므로 태그가 자식에 없더라도
+        // 실제 XROrigin 계층에 속한 Collider면 플레이어로 인정한다.
+        return other.GetComponentInParent<XROrigin>() != null;
     }
 
     // 씬 뷰에서 트리거 영역을 쉽게 확인할 수 있도록 기즈모 표시

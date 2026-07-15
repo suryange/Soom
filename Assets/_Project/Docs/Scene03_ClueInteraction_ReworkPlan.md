@@ -212,12 +212,12 @@ Play Mode 재확인 대기:
 
 구현 변경:
 
-- Scene 03의 `HologramMessage.guidingLightPrefab`을 `Assets/PowerUp/Prefabs/PowerUpContainerYellowDollar.prefab`으로 교체했다.
-- PowerUp 원본에 `GuidingLightController`가 없어도 스폰 인스턴스에 자동 부착한 뒤 기존 Waypoint 경로를 시작한다.
-- Scene 03 전체 배선, Guiding Light 보상 설정, Waypoint 설정 도구도 새 PowerUp 프리팹 경로를 사용한다.
+- Scene 03의 `HologramMessage.guidingLightPrefab`을 기존 `Assets/_Project/Prefabs/GuidingLight.prefab`으로 복원했다.
+- 프리팹에 포함된 `GuidingLightController`로 기존 Waypoint 경로를 시작한다.
+- Scene 03 전체 배선, Guiding Light 보상 설정, Waypoint 설정 도구도 복원된 Guiding Light 프리팹 경로를 사용한다.
 - 실제 재시험 로그에서 3/3 성공과 `MissionSuccess` 방송은 확인됐지만 보상 콜백이 미션 소유 플래그 조건에서 조용히 종료될 수 있었다.
 - `MissionStarted` 상태에서 성공 방송 시점이 `BreathingActive`라면 상태 진입 이벤트를 놓쳤더라도 정상 소유 미션으로 인정하도록 수정했다.
-- 성공 채널 재구독을 보강하고 스폰된 PowerUp의 모든 ParticleSystem을 즉시 재생한다.
+- 성공 채널 재구독을 보강하고 스폰된 Guiding Light의 빛 연출을 활성화한다.
 - Console의 `호흡 성공 보상 수신`과 `빛무리 스폰 완료` 로그로 진행 상태, 프리팹, 스폰 위치, Waypoint 개수를 확인할 수 있다.
 
 - [ ] 3회의 들숨/날숨 성공 이벤트가 정확히 세 번 누적되는지 확인한다.
@@ -228,6 +228,101 @@ Play Mode 재확인 대기:
 - [ ] 취소 시 미션 소유 플래그가 초기화되어 이후 다른 성공 이벤트로 Guiding Light가 잘못 스폰되지 않는지 확인한다.
 
 이 항목은 3.4의 호흡 측정 시작 문제가 해결된 뒤 진행한다.
+
+### 3.6 2026-07-15 신규 사용자 피드백 반영
+
+이번 수정의 공통 원칙은 안내 UI를 실제 상호작용 가능 시점에만 노출하고, 호흡 완료 이후 플레이어와 Guiding Light가 다음 동선을 자연스럽게 시작하도록 만드는 것이다. 아래 항목의 Runtime 코드·Scene·Prefab·Material 구현은 반영했으며, 최종 체크리스트는 Play Mode 실기기 검증 후 완료 처리한다.
+
+#### 3.6.1 Ray Hover 중에만 `G: 메세지 잡기` 표시
+
+현재 요구사항:
+
+- 컨트롤러 Ray가 `ClueObject`를 실제로 가리키고 유효한 Far Ray Hover가 성립한 동안에만 G 안내를 표시한다.
+- Ray가 다른 곳을 향하거나 Hover가 종료되면 같은 프레임 또는 다음 프레임에 안내를 숨긴다.
+- 거리/FOV 감지만으로 G 안내를 표시하지 않는다. 거리/FOV 감지 UI와 조작 가능 UI의 역할을 분리한다.
+- `Assets/UI component/08 interact_button.prefab` 인스턴스 하나를 오른쪽 컨트롤러 아래에서 재사용한다.
+- 프리팹 구조는 변경하지 않고 텍스트만 다음과 같이 설정한다.
+  - `Button` 텍스트: `G`
+  - `Message` 텍스트: `메세지 잡기`
+
+구현 계획:
+
+- [x] `HologramMessage`의 G 안내 요청 조건에서 Grab 중 표시 조건을 제거하고, 활성 Far Ray Hover 집합이 비어 있지 않을 때만 메시지 안내를 요청한다.
+- [x] `hoverEntered`에서 `IsActiveFarRay()`를 통과한 Interactor만 등록하고 `hoverExited`, `OnDisable`, Select 종료에서 반드시 제거한다.
+- [x] MissionReady의 `B / 호흡 미션` 안내와 G 안내가 같은 프리팹 인스턴스를 공유하되 동시에 요청되면 현재 실제 상호작용이 가능한 G 안내를 우선한다.
+- [x] `Right Controller`가 먼저 비활성화되는 씬 종료 경로에서는 숨김 처리만 하고 프롬프트를 재생성하지 않는다.
+
+완료 기준:
+
+- Ray가 `ClueObject`를 벗어나 있으면 G 안내가 보이지 않는다.
+- 오른손 Ray가 `ClueObject`에 Hover하는 동안에만 `G / 메세지 잡기`가 보인다.
+- Direct/Near Hover, 단순 거리 진입, ClueObject Grab 이후에는 G 안내가 남지 않는다.
+
+#### 3.6.2 Breath Circle 가시성 개선
+
+현재 문제:
+
+- 컨트롤러 기울기에 따라 작아지고 커지는 중앙 원형 UI가 지나치게 투명해 호흡 입력 피드백을 식별하기 어렵다.
+- HMD 움직임이나 Scene 조명과 관계없이 카메라 앞에서 안정적으로 보여야 한다.
+
+구현 계획:
+
+- [x] `BreathCircleUI`의 중앙 원, 진행 슬롯, 배경 이미지와 상위 `CanvasGroup`의 알파를 모두 점검한다.
+- [x] 중앙 원의 기본/최소 알파를 충분히 높이고, 크기 변화 중에도 알파가 0에 가깝게 내려가지 않도록 제한한다.
+- [x] 밝은 사막 배경에서도 구분되도록 원 색상 대비와 외곽선 불투명도를 높인다.
+- [x] `SoomUI/BreathCircle`을 Main Camera 기준 고정 거리의 HMD 추종 UI로 유지하고, World Space Canvas를 Near Clip Plane보다 충분히 앞에 배치한다.
+- [x] 호흡값 변화는 알파가 아니라 원의 크기 변화로 우선 전달하고, 성공 Pulse에서도 원이 완전히 사라지지 않게 한다.
+
+완료 기준:
+
+- BreathingActive 진입 직후 입력 전 상태에서도 중앙 원의 위치와 형태를 명확히 식별할 수 있다.
+- 컨트롤러를 기울이고 되돌릴 때 최소/최대 크기 차이가 카메라 앞에서 분명하게 보인다.
+- 밝은 하늘, 모래 지형, Guiding Light가 뒤에 있는 상황에서도 UI가 묻히지 않는다.
+- HMD를 회전하거나 이동해도 UI가 카메라 앞의 의도한 위치를 유지한다.
+
+#### 3.6.3 호흡 완료 후 플레이어 위치 이동
+
+현재 요구사항:
+
+- 첫 번째 호흡 훈련을 모두 마치면 플레이어를 Guiding Light 스폰 지점 앞의 안전한 위치로 이동시킨다.
+
+구현 계획:
+
+- [x] `GuidingLightSpawnPoint` 근처에 전용 `PostBreathPlayerSpawnPoint` Transform을 만들고, “앞” 방향과 플레이어가 바라볼 Yaw를 Scene에서 명시한다.
+- [x] 하드코딩된 월드 좌표 대신 전용 Transform 참조를 `HologramMessage`에 직렬화한다.
+- [x] 세 번째 호흡 성공과 미션 소유권 검증이 끝난 뒤에만 한 번 이동한다. 취소, 중복 성공 이벤트, 다른 호흡 콘텐츠 성공에서는 이동하지 않는다.
+- [x] XR Origin 루트를 단순히 목표 좌표에 놓지 않고 현재 HMD의 로컬 오프셋을 보정하여, 플레이어의 실제 머리 위치가 목표 지점에 도착하도록 한다.
+- [x] CharacterController를 이동 직전 잠시 비활성화하고 XROrigin 이동 API를 사용한다.
+- [x] Guiding Light 생성과 플레이어 이동의 실행 순서를 고정하고 한 프레임 중복 이동을 막는 가드를 둔다.
+
+완료 기준:
+
+- 3회 호흡 성공 직후 플레이어가 `PostBreathPlayerSpawnPoint`에 정확히 한 번 도착한다.
+- 이동 후 플레이어가 Guiding Light 스폰 지점과 첫 Waypoint를 자연스럽게 바라본다.
+- 지면 아래, Collider 내부, 낙하 가능한 위치에 생성되지 않는다.
+- 호흡 취소 또는 실패 시에는 기존 위치가 유지된다.
+
+#### 3.6.4 Guiding Light를 반투명 발광 구체로 개선
+
+현재 요구사항:
+
+- `Assets/_Project/Prefabs/GuidingLight.prefab`의 시각 요소를 빛나는 구체 형태로 유지하면서 반투명하게 표현한다.
+
+구현 계획:
+
+- [x] `GlowOrb` Renderer에 사용하는 `GuidingLightGlow.mat`을 URP 투명 표면으로 설정한다.
+- [x] Base Color 알파를 낮추되 구체의 실루엣이 사라지지 않도록 투명도와 Blend Mode를 조정한다.
+- [x] HDR Emission 색상과 강도를 설정하고, Scene 전용 Volume/Bloom과 카메라 Post Processing을 활성화한다.
+- [x] 내부 Point Light는 구체 중심에 유지하되 과도한 조도, 짧은 Range, 주변 지형의 번쩍임이 생기지 않도록 튜닝한다.
+- [ ] 투명 오브젝트 정렬 문제, 양면 표시 필요 여부, 깊이 가림 현상을 여러 시야각에서 확인한다.
+- [x] `Scene03GuidingLightRewardSetup`과 `Scene03GuidingWaypointSetup`을 다시 실행해도 재질과 투명/Emission 설정이 덮어써지지 않게 한다.
+
+완료 기준:
+
+- Guiding Light가 불투명한 공이나 PowerUp처럼 보이지 않고 반투명한 빛 구체로 보인다.
+- 밝은 낮 배경과 모래폭풍 환경 양쪽에서 위치를 식별할 수 있다.
+- 이동 중 깜빡임, 정렬 반전, 재질 분홍색 오류가 없다.
+- 기존 Waypoint 이동, Sandstorm Fade Out/Restore, 한 번만 스폰되는 동작은 유지된다.
 
 ## 4. 수정 적용 순서
 
@@ -240,7 +335,11 @@ Play Mode 재확인 대기:
 7. 3.4 진단 정보를 켠 상태로 테스트 C를 실행하고 호흡 측정 중단 지점을 찾는다.
 8. 호흡 측정을 수정한 뒤 테스트 C의 측정 Smoke Test를 통과시킨다.
 9. 테스트 D와 E로 Guiding Light, 완료, 취소, 반복 입력을 검증한다.
-10. Console을 다시 확인하고 아래 최종 체크리스트를 갱신한다.
+10. Ray Hover 전용 G 안내와 `08 interact_button` 텍스트 전환을 검증한다.
+11. Breath Circle의 카메라 앞 위치, 불투명도, 최소/최대 크기 가시성을 조정한다.
+12. `PostBreathPlayerSpawnPoint`를 배치하고 성공 시 XR Origin 이동을 검증한다.
+13. Guiding Light 투명/Emission 재질과 Bloom을 조정한다.
+14. Console을 다시 확인하고 아래 최종 체크리스트를 갱신한다.
 
 ## 5. Play Mode 재시험 절차
 
@@ -263,15 +362,17 @@ Play Mode 재확인 대기:
 1. ClueObject에 접근하되 아직 Ray Hover가 발생하지 않는 거리에서 바라본다.
 2. 감지 원 안에 ClueObject가 들어오는지 확인한다.
 3. Ray로 선택 가능한 거리까지 접근해 오른손 Ray를 ClueObject에 맞춘다.
-4. 유효한 Ray Hover가 시작될 때 감지 위치 이미지가 사라지는지 확인한다.
-5. G를 누른 채 유지한다.
-6. 열린 메시지가 선택한 오른손 컨트롤러에 붙는지 확인한다.
-7. 컨트롤러를 위치와 각도별로 움직여 메시지가 자연스럽게 따라오는지 확인한다.
-8. G를 놓는다.
+4. Ray를 ClueObject에서 벗어난 곳으로 향했을 때 G 안내가 없는지 확인한다.
+5. Ray를 ClueObject에 맞춰 유효한 Far Ray Hover가 시작될 때 감지 위치 이미지가 사라지고 오른손 컨트롤러에 `G / 메세지 잡기`가 나타나는지 확인한다.
+6. G를 누른 채 유지하고, Select 시작 후에는 G 안내가 남지 않는지 확인한다.
+7. 열린 메시지가 선택한 오른손 컨트롤러에 붙는지 확인한다.
+8. 컨트롤러를 위치와 각도별로 움직여 메시지가 자연스럽게 따라오는지 확인한다.
+9. G를 놓는다.
 
 예상 결과:
 
 - 첫 G 입력에서 열린 모델로 변경되고 Select는 유지된다.
+- G 안내는 유효한 Far Ray Hover 중에만 표시된다.
 - Grab 중 ClueObject가 컨트롤러를 따라 움직인다.
 - Release 후 열린 상태로 최초 위치/회전에 복귀한다.
 - MissionReady가 되고 B 안내가 오른손 컨트롤러 위에 나타난다.
@@ -296,15 +397,17 @@ Play Mode 재확인 대기:
    - 실기기: 오른손 B
 3. BreathingActive 전환과 Breath Circle 표시를 확인한다.
 4. 진단 값에서 `isMeasuring=true`와 유효한 Controller 참조를 확인한다.
-5. B를 다시 누르지 않는다. BreathingActive 중 B 재입력은 측정 취소 동작이다.
-6. 왼손 또는 오른손 Controller 하나를 시작 자세에서 21° 이상 기울여 0.15초 이상 유지한다.
-7. Console의 `[BreathManager] 들숨 감지`와 Breath Circle 값 증가를 확인한다.
-8. 같은 Controller를 시작 자세로 되돌려 회전 변화량을 9° 이하로 0.15초 이상 유지한다.
-9. `[BreathManager] 호흡 1/3회 성공`과 슬롯 하나 채움을 확인한다.
+5. 입력 전에도 중앙 원이 카메라 앞에서 분명히 보이고 배경에 묻히지 않는지 확인한다.
+6. B를 다시 누르지 않는다. BreathingActive 중 B 재입력은 측정 취소 동작이다.
+7. 왼손 또는 오른손 Controller 하나를 시작 자세에서 21° 이상 기울여 0.15초 이상 유지한다.
+8. Console의 `[BreathManager] 들숨 감지`와 Breath Circle의 크기 증가를 확인한다.
+9. 같은 Controller를 시작 자세로 되돌려 회전 변화량을 9° 이하로 0.15초 이상 유지한다.
+10. `[BreathManager] 호흡 1/3회 성공`과 슬롯 하나 채움을 확인한다.
 
 통과 조건:
 
 - BreathingActive 상태 전환만 되는 것이 아니라 실제 측정값과 Breath Circle이 함께 갱신된다.
+- Breath Circle이 충분한 불투명도와 대비로 카메라 앞에서 계속 식별된다.
 - 입력 한 사이클당 성공 이벤트가 한 번만 발생한다.
 - Inspector의 `measurementSessionCount`가 B 입력 한 번에 1만 증가한다.
 
@@ -313,12 +416,14 @@ Play Mode 재확인 대기:
 ### 테스트 D: 3회 성공과 Guiding Light
 
 1. 테스트 C와 같은 방식으로 들숨/날숨을 총 3회 완료한다.
-2. 세 번째 성공 직후 Hierarchy와 Game View를 확인한다.
+2. 세 번째 성공 직후 플레이어 위치, Hierarchy와 Game View를 확인한다.
 
 예상 결과:
 
 - `GuidingLight(Clone)`이 정확히 하나 생성된다.
+- 플레이어가 `PostBreathPlayerSpawnPoint`로 정확히 한 번 이동하고 Guiding Light의 시작 방향을 바라본다.
 - `길라잡이` 안내가 표시된다.
+- Guiding Light가 반투명한 발광 구체로 보이며 Bloom과 Point Light가 자연스럽게 나타난다.
 - Guiding Light가 첫 Waypoint부터 14개를 순서대로 이동한다.
 - 플레이어 상태가 Idle로 복귀한다.
 - 이동 잠금과 Breath Circle이 해제된다.
@@ -351,9 +456,13 @@ Play Mode 재확인 대기:
 - [ ] 감지 원 안에 ClueObject가 정확히 위치하고 Ray 선택 가능 시 위치 이미지가 사라진다.
 - [ ] 첫 Grab과 재Grab 중 ClueObject가 선택한 컨트롤러에 붙어 자연스럽게 따라온다.
 - [ ] B 안내가 오른손 컨트롤러 윗부분에 표시되고 상태에 따라 올바르게 숨고 다시 나타난다.
+- [ ] `G / 메세지 잡기` 안내가 컨트롤러 Far Ray로 ClueObject를 가리키는 동안에만 표시된다.
 - [ ] BreathingActive 진입 직후 실제 호흡 측정과 Breath Circle 갱신이 시작된다.
+- [ ] Breath Circle 중앙 원이 충분한 불투명도와 대비로 카메라 앞에서 명확히 보인다.
 - [ ] 들숨/날숨 한 사이클당 성공 이벤트가 한 번만 누적된다.
 - [ ] 3회 성공 시 Guiding Light가 한 번만 스폰되고 Waypoint 이동을 시작한다.
+- [ ] 3회 성공 후 플레이어가 Guiding Light 스폰 지점 앞의 `PostBreathPlayerSpawnPoint`로 한 번만 이동한다.
+- [ ] Guiding Light가 반투명한 발광 구체로 표시되고 기존 이동 및 Fade 동작이 유지된다.
 - [ ] 성공 후 Idle 복귀와 이동 잠금 해제가 정상이다.
 - [ ] 반복 입력과 취소 경로에서 UI, 상태, 측정 횟수, 미션 소유 플래그가 정상 복구된다.
 - [ ] Console에 Null/Missing Reference 예외가 없다.
@@ -378,11 +487,24 @@ Play Mode 재확인 대기:
 - `Assets/_Project/Editor/Scene03GrabInteractionSetup.cs`
 - `Assets/_Project/Editor/Scene03MissionReadyUISetup.cs`
 - `Assets/_Project/Editor/Scene03OutsideWiringBuilder.cs`
+- `Assets/_Project/Editor/Scene03GuidingLightRewardSetup.cs`
+- `Assets/_Project/Editor/Scene03GuidingWaypointSetup.cs`
 - `Assets/_Project/Scenes/Scene_03_InGame_Outside.unity`
 - `Assets/_Project/Prefabs/UI/Scene03_MissionReadyUI.prefab`
-- `Assets/PowerUp/Prefabs/PowerUpContainerYellowDollar.prefab`
+- `Assets/_Project/Prefabs/GuidingLight.prefab`
+- `Assets/_Project/Prefabs/GuidingLightGlow.mat`
+- `Assets/UI component/08 interact_button.prefab`
 - `Assets/_Project/Input/Scene03ClueInputActions.asset`
 
 ## 8. 이번 문서 수정 범위
 
-이번 단계에서는 Console에서 호흡 입력이 처리되지만 Breath Circle이 보이지 않는 결과를 반영했다. 원인은 Scene 03 전용 복제 UI와 `SoomUI/BreathCircle`의 중복 및 잘못된 컨트롤러 참조였다. 공용 UI 참조, HMD 추종 표시, Scene과 Editor 자동 배선 도구를 수정했다.
+기존 단계에서는 Console에서 호흡 입력이 처리되지만 Breath Circle이 보이지 않는 결과를 반영했다. 원인은 Scene 03 전용 복제 UI와 `SoomUI/BreathCircle`의 중복 및 잘못된 컨트롤러 참조였다. 공용 UI 참조, HMD 추종 표시, Scene과 Editor 자동 배선 도구를 수정했다.
+
+2026-07-15 추가 사용자 피드백 네 항목은 코드와 에셋에 구현했으며 Play Mode 검증을 대기한다.
+
+- Far Ray Hover 중에만 `G / 메세지 잡기` 표시
+- 카메라 앞 Breath Circle의 불투명도와 대비 개선
+- 첫 호흡 훈련 성공 후 Guiding Light 스폰 지점 앞쪽으로 플레이어 이동
+- Guiding Light를 반투명한 발광 구체로 시각 개선
+
+Runtime 코드·Scene·Prefab·Material 수정은 반영했다. 최종 체크리스트와 여러 시야각의 투명 정렬 확인은 Play Mode 및 실기기 검증 후 갱신한다.

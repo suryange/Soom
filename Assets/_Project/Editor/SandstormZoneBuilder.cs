@@ -18,17 +18,10 @@ internal static class SandstormZoneBuilder
     private const string BreathEventsChannelPath = "Assets/_Project/Scripts/System/BreathEventsChannel.asset";
     private const string KoreanFontAssetPath = "Assets/_Project/Resources/Fonts/NotoSansKR SDF.asset";
 
-    [MenuItem("SOOM/Build Sandstorm Zone")]
-    private static void Build()
+    [MenuItem("SOOM/Scene 03/Setup Sandstorm Breath Zone")]
+    public static void Build()
     {
         GameObject existingRoot = GameObject.Find(RootName);
-        if (existingRoot != null)
-        {
-            Debug.LogWarning($"[SandstormZoneBuilder] 씬에 이미 '{RootName}'이(가) 존재합니다. " +
-                              "다시 만들려면 기존 오브젝트를 지운 뒤 실행하세요.", existingRoot);
-            Selection.activeGameObject = existingRoot;
-            return;
-        }
 
         BreathEventsSO breathEvents = AssetDatabase.LoadAssetAtPath<BreathEventsSO>(BreathEventsChannelPath);
         if (breathEvents == null)
@@ -46,15 +39,19 @@ internal static class SandstormZoneBuilder
 
         Vector3 anchorPosition = FindAnchorPosition();
 
-        GameObject root = new GameObject(RootName);
-        Undo.RegisterCreatedObjectUndo(root, "Build Sandstorm Zone");
-        root.transform.position = anchorPosition;
+        GameObject root = existingRoot;
+        if (root == null)
+        {
+            root = new GameObject(RootName);
+            Undo.RegisterCreatedObjectUndo(root, "Build Sandstorm Zone");
+            root.transform.position = anchorPosition;
+        }
 
         GameObject triggerGO = BuildTriggerZone(root.transform);
         GameObject particlesGO = BuildParticles(root.transform);
         GameObject chapterUI = BuildWorldText(
             root.transform, "ChapterUI",
-            "<size=140%>되살아난 모래</size>\n불안한 첫 발",
+            "<size=140%>끝없는 모래</size>\n불안한 첫 발",
             new Vector3(0f, 2.6f, 0f), 3f, koreanFont);
         GameObject zoneTextUI = BuildWorldText(
             root.transform, "ZoneTextUI",
@@ -62,30 +59,30 @@ internal static class SandstormZoneBuilder
             new Vector3(0f, 2.1f, 0f), 2.4f, koreanFont);
         GameObject instructionUI = BuildWorldText(
             root.transform, "InstructionUI",
-            "깊은 호흡으로 모래폭풍을 잠재우세요",
+            "깊게 호흡하여 모래폭풍을 잠재우세요",
             new Vector3(0f, 2.1f, 0f), 1.6f, koreanFont);
 
-        GameObject controllerGO = new GameObject("SandstormController");
-        Undo.RegisterCreatedObjectUndo(controllerGO, "Build Sandstorm Zone");
-        controllerGO.transform.SetParent(root.transform, false);
-        SandstormController controller = controllerGO.AddComponent<SandstormController>();
+        Transform controllerTransform = root.transform.Find("SandstormController");
+        GameObject controllerGO = controllerTransform != null
+            ? controllerTransform.gameObject
+            : CreateChild(root.transform, "SandstormController");
+        SandstormController controller = GetOrAddComponent<SandstormController>(controllerGO);
 
         GuidingLightController guidingLight = Object.FindFirstObjectByType<GuidingLightController>();
-        if (guidingLight == null)
-        {
-            Debug.LogWarning("[SandstormZoneBuilder] 씬에서 GuidingLightController를 찾지 못했습니다. " +
-                              "등불 빛 페이드 연출을 쓰려면 SandstormController.guidingLight를 수동으로 연결하세요.");
-        }
 
-        BreathCircleUI breathCircleUI = Object.FindFirstObjectByType<BreathCircleUI>();
+        BreathCircleUI breathCircleUI = FindSceneComponent<BreathCircleUI>("BreathCircle_Outside");
         if (breathCircleUI == null)
         {
             Debug.LogWarning("[SandstormZoneBuilder] 씬에서 BreathCircleUI를 찾지 못했습니다. " +
                               "호흡 UI를 표시하려면 SandstormController.breathCircleUI를 수동으로 연결하세요.");
         }
 
+        HologramMessage guidingLightProvider = FindSceneComponent<HologramMessage>(null);
+        if (guidingLightProvider == null)
+            Debug.LogWarning("[SandstormZoneBuilder] 런타임 Guiding Light 공급자인 HologramMessage를 찾지 못했습니다.");
+
         WireController(controller, breathEvents, chapterUI, zoneTextUI, instructionUI,
-            particlesGO.GetComponent<ParticleSystem>(), guidingLight, breathCircleUI);
+            particlesGO.GetComponent<ParticleSystem>(), guidingLight, guidingLightProvider, breathCircleUI);
 
         WireTrigger(triggerGO.GetComponent<SandstormZoneTrigger>(), controller);
 
@@ -93,12 +90,20 @@ internal static class SandstormZoneBuilder
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
         Selection.activeGameObject = root;
 
-        Debug.Log("[SandstormZoneBuilder] 모래바람 구역 배선 완료. " +
-                  "트리거 존 위치/크기, UI 텍스트 위치, 옵션 SFX/파티클 머티리얼은 씬에서 직접 다듬어주세요.");
+        Debug.Log("[SandstormZoneBuilder] 모래폭풍 구역 생성/갱신 완료. " +
+                  "기존 Transform은 보존했으며, Wind Clip 미지정 시 절차적 바람 루프를 사용합니다.");
     }
 
     private static Vector3 FindAnchorPosition()
     {
+        GameObject finalGuidingWaypoint = GameObject.Find("Waypoint_12");
+        if (finalGuidingWaypoint != null)
+        {
+            Vector3 waypointPosition = finalGuidingWaypoint.transform.position;
+            waypointPosition.y = 0f;
+            return waypointPosition;
+        }
+
         GameObject clue = GameObject.Find("ClueObject");
         if (clue != null)
         {
@@ -109,27 +114,27 @@ internal static class SandstormZoneBuilder
 
     private static GameObject BuildTriggerZone(Transform parent)
     {
-        GameObject go = new GameObject("SandstormZoneTrigger");
-        Undo.RegisterCreatedObjectUndo(go, "Build Sandstorm Zone");
-        go.transform.SetParent(parent, false);
-        go.transform.localPosition = new Vector3(0f, 1.5f, 0f);
+        Transform existing = parent.Find("SandstormZoneTrigger");
+        GameObject go = existing != null ? existing.gameObject : CreateChild(parent, "SandstormZoneTrigger");
+        if (existing == null)
+            go.transform.localPosition = new Vector3(0f, 1.5f, 0f);
 
-        BoxCollider box = go.AddComponent<BoxCollider>();
+        BoxCollider box = GetOrAddComponent<BoxCollider>(go);
         box.isTrigger = true;
-        box.size = new Vector3(6f, 3f, 6f);
+        if (existing == null) box.size = new Vector3(6f, 3f, 6f);
 
-        go.AddComponent<SandstormZoneTrigger>();
+        GetOrAddComponent<SandstormZoneTrigger>(go);
         return go;
     }
 
     private static GameObject BuildParticles(Transform parent)
     {
-        GameObject go = new GameObject("SandstormParticles");
-        Undo.RegisterCreatedObjectUndo(go, "Build Sandstorm Zone");
-        go.transform.SetParent(parent, false);
-        go.transform.localPosition = new Vector3(0f, 1f, 0f);
+        Transform existing = parent.Find("SandstormParticles");
+        GameObject go = existing != null ? existing.gameObject : CreateChild(parent, "SandstormParticles");
+        if (existing == null)
+            go.transform.localPosition = new Vector3(0f, 1f, 0f);
 
-        ParticleSystem ps = go.AddComponent<ParticleSystem>();
+        ParticleSystem ps = GetOrAddComponent<ParticleSystem>(go);
 
         ParticleSystem.MainModule main = ps.main;
         main.loop = true;
@@ -173,34 +178,63 @@ internal static class SandstormZoneBuilder
             if (defaultParticleMat != null) psRenderer.sharedMaterial = defaultParticleMat;
         }
 
-        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        if (!EditorApplication.isPlaying)
+            ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         return go;
     }
 
     private static GameObject BuildWorldText(Transform parent, string name, string text, Vector3 localPosition,
         float fontSize, TMP_FontAsset font)
     {
-        GameObject go = new GameObject(name);
-        Undo.RegisterCreatedObjectUndo(go, "Build Sandstorm Zone");
-        go.transform.SetParent(parent, false);
-        go.transform.localPosition = localPosition;
+        Transform existing = parent.Find(name);
+        GameObject go = existing != null ? existing.gameObject : CreateChild(parent, name);
+        if (existing == null)
+            go.transform.localPosition = localPosition;
 
-        TextMeshPro tmp = go.AddComponent<TextMeshPro>();
+        TextMeshPro tmp = GetOrAddComponent<TextMeshPro>(go);
         tmp.text = text;
         tmp.fontSize = fontSize;
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.color = Color.white;
         if (font != null) tmp.font = font;
 
-        go.AddComponent<FaceCamera>();
+        GetOrAddComponent<FaceCamera>(go);
 
-        go.SetActive(false); // SandstormController가 시점에 맞춰 활성화
+        if (existing == null) go.SetActive(false); // SandstormController가 시점에 맞춰 활성화
         return go;
+    }
+
+    private static GameObject CreateChild(Transform parent, string name)
+    {
+        GameObject go = new GameObject(name);
+        Undo.RegisterCreatedObjectUndo(go, "Build Sandstorm Zone");
+        go.transform.SetParent(parent, false);
+        return go;
+    }
+
+    private static T GetOrAddComponent<T>(GameObject go) where T : Component
+    {
+        T component = go.GetComponent<T>();
+        return component != null ? component : Undo.AddComponent<T>(go);
+    }
+
+    private static T FindSceneComponent<T>(string preferredName) where T : Component
+    {
+        T fallback = null;
+        foreach (T component in Resources.FindObjectsOfTypeAll<T>())
+        {
+            if (component == null || !component.gameObject.scene.IsValid()) continue;
+            if (!string.IsNullOrEmpty(preferredName) && component.name == preferredName)
+                return component;
+            if (fallback == null) fallback = component;
+        }
+        return fallback;
     }
 
     private static void WireController(SandstormController controller, BreathEventsSO breathEvents,
         GameObject chapterUI, GameObject zoneTextUI, GameObject instructionUI,
-        ParticleSystem particles, GuidingLightController guidingLight, BreathCircleUI breathCircleUI)
+        ParticleSystem particles, GuidingLightController guidingLight,
+        HologramMessage guidingLightProvider, BreathCircleUI breathCircleUI)
     {
         SerializedObject so = new SerializedObject(controller);
         so.FindProperty("breathEventsChannel").objectReferenceValue = breathEvents;
@@ -208,6 +242,15 @@ internal static class SandstormZoneBuilder
         so.FindProperty("zoneTextUIRoot").objectReferenceValue = zoneTextUI;
         so.FindProperty("sandstormParticles").objectReferenceValue = particles;
         so.FindProperty("guidingLight").objectReferenceValue = guidingLight;
+        so.FindProperty("guidingLightProvider").objectReferenceValue = guidingLightProvider;
+        SerializedProperty postClearWaypoints = so.FindProperty("postClearWaypoints");
+        Transform waypoint13 = GameObject.Find("Waypoint_13")?.transform;
+        Transform waypoint14 = GameObject.Find("Waypoint_14")?.transform;
+        int waypointCount = (waypoint13 != null ? 1 : 0) + (waypoint14 != null ? 1 : 0);
+        postClearWaypoints.arraySize = waypointCount;
+        int waypointIndex = 0;
+        if (waypoint13 != null) postClearWaypoints.GetArrayElementAtIndex(waypointIndex++).objectReferenceValue = waypoint13;
+        if (waypoint14 != null) postClearWaypoints.GetArrayElementAtIndex(waypointIndex).objectReferenceValue = waypoint14;
         so.FindProperty("breathCircleUI").objectReferenceValue = breathCircleUI;
         so.FindProperty("instructionUIRoot").objectReferenceValue = instructionUI;
         so.ApplyModifiedPropertiesWithoutUndo();

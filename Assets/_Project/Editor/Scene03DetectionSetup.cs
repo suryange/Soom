@@ -78,10 +78,16 @@ internal static class Scene03DetectionSetup
             throw new MissingComponentException("ClueObject 아래에서 DetectionUI/InteractableWorldUI를 찾지 못했습니다.");
         }
 
-        Transform uiParent = FindOrCreateSoomUI();
+        // 감지 UI는 단서와 함께 관리될 수 있도록 반드시 ClueObject의 자식으로 둔다.
+        // 이전 설정에서 SoomUI 아래에 생성된 인스턴스도 기존 참조를 통해 재사용하고 이동한다.
+        Transform uiParent = clue.transform;
         Transform existing = uiParent.Find(IndicatorInstanceName);
-        GameObject indicator;
-        if (existing != null)
+        GameObject indicator = hologram.hologramUI;
+        if (indicator != null)
+        {
+            indicator.name = IndicatorInstanceName;
+        }
+        else if (existing != null)
         {
             indicator = existing.gameObject;
         }
@@ -96,6 +102,14 @@ internal static class Scene03DetectionSetup
             indicator = (GameObject)PrefabUtility.InstantiatePrefab(prefab, scene);
             indicator.name = IndicatorInstanceName;
             indicator.transform.SetParent(uiParent, false);
+        }
+
+        if (indicator.transform.parent != uiParent)
+        {
+            Undo.SetTransformParent(indicator.transform, uiParent, "Parent Detection UI To ClueObject");
+            indicator.transform.localPosition = Vector3.zero;
+            indicator.transform.localRotation = Quaternion.identity;
+            indicator.transform.localScale = Vector3.one;
         }
 
         RectTransform indicatorRect = indicator.GetComponent<RectTransform>();
@@ -170,14 +184,4 @@ internal static class Scene03DetectionSetup
         return clue.position;
     }
 
-    private static Transform FindOrCreateSoomUI()
-    {
-        GameObject root = GameObject.Find("SoomUI");
-        if (root == null)
-        {
-            root = new GameObject("SoomUI");
-            Undo.RegisterCreatedObjectUndo(root, "Create SoomUI");
-        }
-        return root.transform;
-    }
 }

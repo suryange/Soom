@@ -17,6 +17,7 @@ internal static class Scene03MissionReadyUISetup
     private const string PrefabPath = PrefabFolder + "/Scene03_MissionReadyUI.prefab";
     private const string InstanceName = "Scene03_MissionReadyUI";
     private const string KoreanFontPath = "Assets/_Project/Resources/Fonts/NotoSansKR SDF.asset";
+    private const string ControllerPromptPrefabPath = "Assets/UI component/08 interact_button.prefab";
 
     [MenuItem("SOOM/Scene 03/Build and Setup MissionReady UI")]
     public static void SetupFromMenu()
@@ -48,6 +49,20 @@ internal static class Scene03MissionReadyUISetup
 
         GameObject prefab = BuildOrUpdatePrefab();
         Transform rightController = FindRightController(scene);
+        if (rightController == null)
+            throw new MissingReferenceException("Scene 03에서 Right Controller를 찾지 못했습니다.");
+
+        HologramMessage hologram = Object.FindFirstObjectByType<HologramMessage>(FindObjectsInactive.Include);
+        if (hologram == null)
+            throw new MissingReferenceException("Scene 03에서 HologramMessage를 찾지 못했습니다.");
+
+        GameObject controllerPromptPrefab =
+            AssetDatabase.LoadAssetAtPath<GameObject>(ControllerPromptPrefabPath);
+        if (controllerPromptPrefab == null)
+            throw new MissingReferenceException($"조작 안내 프리팹을 찾지 못했습니다: {ControllerPromptPrefabPath}");
+
+        hologram.controllerPromptPrefab = controllerPromptPrefab;
+        hologram.rightController = rightController;
         Transform existing = camera.transform.Find(InstanceName);
         GameObject instance;
         if (existing != null)
@@ -70,24 +85,27 @@ internal static class Scene03MissionReadyUISetup
         MissionReadyUIController controller = instance.GetComponent<MissionReadyUIController>();
         GameObject tutorial = instance.transform.Find("TutorialContent")?.gameObject;
         GameObject prompt = instance.transform.Find("MissionReadyPromptAnchor")?.gameObject;
-        if (controller == null || tutorial == null || prompt == null)
+        if (controller == null || tutorial == null)
             throw new MissingComponentException("MissionReady UI 프리팹 구조가 올바르지 않습니다.");
 
         SerializedObject controllerObject = new SerializedObject(controller);
         controllerObject.FindProperty("tutorialRoot").objectReferenceValue = tutorial;
         controllerObject.FindProperty("controllerPromptRoot").objectReferenceValue = prompt;
-        controllerObject.FindProperty("rightController").objectReferenceValue = rightController;
+        controllerObject.FindProperty("promptOwner").objectReferenceValue = hologram;
         controllerObject.ApplyModifiedPropertiesWithoutUndo();
 
         // 구독 루트는 활성, 실제 UI 내용은 MissionReady 진입 전까지 비활성이다.
         instance.SetActive(true);
         tutorial.SetActive(false);
-        prompt.SetActive(false);
+        if (prompt != null)
+            prompt.SetActive(false);
 
         EditorUtility.SetDirty(instance);
         EditorUtility.SetDirty(tutorial);
-        EditorUtility.SetDirty(prompt);
+        if (prompt != null)
+            EditorUtility.SetDirty(prompt);
         EditorUtility.SetDirty(controller);
+        EditorUtility.SetDirty(hologram);
         EditorSceneManager.MarkSceneDirty(scene);
         Selection.activeGameObject = instance;
 
@@ -129,16 +147,13 @@ internal static class Scene03MissionReadyUISetup
         Transform oldPrompt = content.transform.Find("BreathingStartPrompt");
         if (oldPrompt != null)
             Object.DestroyImmediate(oldPrompt.gameObject);
-        GameObject prompt = BuildBPrompt(root.transform);
-
         MissionReadyUIController controller = root.GetComponent<MissionReadyUIController>();
         SerializedObject controllerObject = new SerializedObject(controller);
         controllerObject.FindProperty("tutorialRoot").objectReferenceValue = content;
-        controllerObject.FindProperty("controllerPromptRoot").objectReferenceValue = prompt;
+        controllerObject.FindProperty("controllerPromptRoot").objectReferenceValue = null;
         controllerObject.ApplyModifiedPropertiesWithoutUndo();
 
         content.SetActive(false);
-        prompt.SetActive(false);
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
         Object.DestroyImmediate(root);
         AssetDatabase.SaveAssets();

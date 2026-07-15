@@ -137,7 +137,7 @@ public class BreathManager : MonoBehaviour
         isMeasuring = true;
         measurementSessionCount++;
 
-        breathEventsChannel.RaiseBreathValue(0f);
+        breathEventsChannel.ResetSession();
         Debug.Log(
             $"[BreathManager] 측정 세션 #{measurementSessionCount} 시작. " +
             $"State={PlayerStateManager.Instance.CurrentState}, Active={isActiveAndEnabled}, " +
