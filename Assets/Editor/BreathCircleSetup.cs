@@ -101,6 +101,9 @@ static class BreathCircleSetup
             for (int i = 0; i < slotCount; i++) fills.GetArrayElementAtIndex(i).objectReferenceValue = slotFills[i];
         });
 
+        // 각 콘텐츠의 상태 컨트롤러가 Show()를 호출할 때만 표시한다.
+        canvasGo.SetActive(false);
+
         var scene = SceneManager.GetActiveScene();
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);

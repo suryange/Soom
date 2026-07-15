@@ -22,7 +22,6 @@ public class SOOMSceneManager : MonoBehaviour
 
     [SerializeField] private float fadeOutDuration = 0.5f;
     [SerializeField] private float fadeInDuration = 0.5f;
-
     private void Awake()
     {
         // 씬이 넘어가도 매니저가 파괴되지 않도록 유지

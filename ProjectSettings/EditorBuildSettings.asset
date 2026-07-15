@@ -8,9 +8,15 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/Scenes/SampleScene.unity
     guid: 99c9720ab356a0642a771bea13969a05
-  - enabled: 0
+  - enabled: 1
     path: Assets/_Project/Scenes/Breath_Test.unity
     guid: 9660913523647da449a83f0f66cba564
+  - enabled: 1
+    path: Assets/_Project/Scenes/Scene_01_Start.unity
+    guid: ad79a12655ba83c4b9fe2ce6c4cccf8d
+  - enabled: 1
+    path: Assets/_Project/Scenes/Scene_02_InGame_Inside.unity
+    guid: e66c0883277c9374386f0fc60a24f7a8
   - enabled: 1
     path: Assets/_Project/Scenes/Scene_03_InGame_Outside.unity
     guid: a724b7865c192e54b801591d74e45166

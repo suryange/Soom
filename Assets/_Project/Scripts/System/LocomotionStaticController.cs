@@ -25,7 +25,7 @@ public class LocomotionStateController : MonoBehaviour
     private void HandleStateEnter(PlayerState state)
     {
         // 호흡 미션 중일 때 이동 불가
-        if (state == PlayerState.BreathingActive)
+        if (state == PlayerState.Interact || state == PlayerState.BreathingActive)
         {
             SetLocomotionActive(false);
         }
