@@ -21,6 +21,10 @@ internal static class Scene03PlanSetup
     private const string GuidingLightPrefabPath = "Assets/_Project/Prefabs/GuidingLight.prefab";
     private const string ButterflyControllerPath =
         "Assets/_Project/Prefabs/GuidingLightButterfly.controller";
+    private const string ButterflyCombinedClipPath =
+        "Assets/_Project/Prefabs/GuidingLightButterflyFlap.anim";
+    private const string LeftWingClipName = "Plane.004|Action.004";
+    private const string RightWingClipName = "Plane.005|Action.006";
     private const string DustMaterialPath = "Assets/_Project/Prefabs/GuidingLightDust.mat";
 
     [MenuItem("SOOM/Scene 03/Apply plan.md Setup")]
@@ -33,6 +37,14 @@ internal static class Scene03PlanSetup
     {
         EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
         Apply();
+    }
+
+    [MenuItem("SOOM/Scene 03/Rebuild Guiding Light Butterfly Animation")]
+    internal static void RebuildButterflyAnimation()
+    {
+        ConfigureButterflyImport();
+        EnsureButterflyController();
+        AssetDatabase.SaveAssets();
     }
 
     private static void Apply()
@@ -91,18 +103,54 @@ internal static class Scene03PlanSetup
         }
     }
 
-    private static AnimationClip GetButterflyClip()
+    private static AnimationClip CreateOrUpdateButterflyClip()
     {
-        return AssetDatabase.LoadAllAssetsAtPath(ButterflyModelPath)
+        AnimationClip[] sourceClips = AssetDatabase.LoadAllAssetsAtPath(ButterflyModelPath)
             .OfType<AnimationClip>()
             .Where(clip => !clip.name.StartsWith("__preview__") && clip.length > 0.01f)
-            .OrderByDescending(clip => clip.length)
-            .FirstOrDefault();
+            .ToArray();
+        AnimationClip leftWing = sourceClips.FirstOrDefault(clip => clip.name == LeftWingClipName);
+        AnimationClip rightWing = sourceClips.FirstOrDefault(clip => clip.name == RightWingClipName);
+        if (leftWing == null || rightWing == null)
+        {
+            throw new MissingReferenceException(
+                $"Butterfly wing clips are missing. Required: {LeftWingClipName}, {RightWingClipName}");
+        }
+
+        AnimationClip combined = AssetDatabase.LoadAssetAtPath<AnimationClip>(ButterflyCombinedClipPath);
+        if (combined == null)
+        {
+            combined = new AnimationClip { name = "GuidingLightButterflyFlap" };
+            AssetDatabase.CreateAsset(combined, ButterflyCombinedClipPath);
+        }
+
+        combined.ClearCurves();
+        CopyClipCurves(leftWing, combined);
+        CopyClipCurves(rightWing, combined);
+        combined.frameRate = Mathf.Max(leftWing.frameRate, rightWing.frameRate);
+
+        AnimationClipSettings settings = AnimationUtility.GetAnimationClipSettings(combined);
+        settings.loopTime = true;
+        AnimationUtility.SetAnimationClipSettings(combined, settings);
+        EditorUtility.SetDirty(combined);
+        return combined;
+    }
+
+    private static void CopyClipCurves(AnimationClip source, AnimationClip destination)
+    {
+        foreach (EditorCurveBinding binding in AnimationUtility.GetCurveBindings(source))
+            AnimationUtility.SetEditorCurve(destination, binding, AnimationUtility.GetEditorCurve(source, binding));
+
+        foreach (EditorCurveBinding binding in AnimationUtility.GetObjectReferenceCurveBindings(source))
+        {
+            AnimationUtility.SetObjectReferenceCurve(
+                destination, binding, AnimationUtility.GetObjectReferenceCurve(source, binding));
+        }
     }
 
     private static AnimatorController EnsureButterflyController()
     {
-        AnimationClip clip = GetButterflyClip();
+        AnimationClip clip = CreateOrUpdateButterflyClip();
         if (clip == null)
             throw new MissingReferenceException("butterfly_2.fbx에서 날개짓 AnimationClip을 찾지 못했습니다.");
 
@@ -111,7 +159,29 @@ internal static class Scene03PlanSetup
         if (controller == null)
             controller = AnimatorController.CreateAnimatorControllerAtPath(ButterflyControllerPath);
 
-        AnimatorStateMachine stateMachine = controller.layers[0].stateMachine;
+        if (controller.layers.Length > 1)
+        {
+            AnimatorControllerLayer[] removedLayers = controller.layers.Skip(1).ToArray();
+            controller.layers = new[] { controller.layers[0] };
+            foreach (AnimatorControllerLayer removedLayer in removedLayers)
+            {
+                foreach (ChildAnimatorState childState in removedLayer.stateMachine.states)
+                    Object.DestroyImmediate(childState.state, true);
+                Object.DestroyImmediate(removedLayer.stateMachine, true);
+            }
+        }
+
+        AnimatorStateMachine activeStateMachine = controller.layers[0].stateMachine;
+        AnimatorState[] activeStates = activeStateMachine.states.Select(item => item.state).ToArray();
+        foreach (Object subAsset in AssetDatabase.LoadAllAssetsAtPath(ButterflyControllerPath))
+        {
+            bool isAnimatorSubAsset = subAsset is AnimatorState || subAsset is AnimatorStateMachine;
+            bool isActive = subAsset == activeStateMachine || activeStates.Any(state => state == subAsset);
+            if (isAnimatorSubAsset && !isActive)
+                Object.DestroyImmediate(subAsset, true);
+        }
+
+        AnimatorStateMachine stateMachine = activeStateMachine;
         AnimatorState state = stateMachine.states
             .Select(item => item.state)
             .FirstOrDefault(item => item.name == "Wing Flap");
