@@ -499,7 +499,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 603295347482155874, guid: 90cb6ea1d1e519d41af53446ecab08c7, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 1.5
+      value: -1.05
       objectReference: {fileID: 0}
     - target: {fileID: 603295347482155874, guid: 90cb6ea1d1e519d41af53446ecab08c7, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -544,6 +544,11 @@ PrefabInstance:
     - target: {fileID: 1658448898661128165, guid: 90cb6ea1d1e519d41af53446ecab08c7, type: 3}
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_Arguments.m_ObjectArgumentAssemblyTypeName
       value: UnityEngine.Object, UnityEngine
+      objectReference: {fileID: 0}
+    - target: {fileID: 2704891142999374812, guid: 90cb6ea1d1e519d41af53446ecab08c7, type: 3}
+      propertyPath: m_text
+      value: "\uC0AC\uB9C9\uC5D0 \uBD88\uC2DC\uCC29\uD55C \uC678\uACC4\uC778 SHU\uAC00
+        \uB418\uC5B4 \uD638\uD761\uD0D0\uD5D8\uC744 \uC2DC\uC791\uD558\uC138\uC694"
       objectReference: {fileID: 0}
     - target: {fileID: 2704891142999374812, guid: 90cb6ea1d1e519d41af53446ecab08c7, type: 3}
       propertyPath: m_fontAsset
@@ -705,7 +710,7 @@ VideoPlayer:
   m_TargetAudioSources:
   - {fileID: 0}
   m_DirectAudioVolumes:
-  - 0.3
+  - 0.1
   m_Url: 
   m_EnabledAudioTracks: 01
   m_DirectAudioMutes: 00
@@ -1057,7 +1062,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c79fbe774a56a44418994fd1206a83dc, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SoomAudioManager
   audioLibrary: {fileID: 11400000, guid: d5d2059bb9194aa68703c12c0d74c027, type: 2}
   breathEventsChannel: {fileID: 11400000, guid: 91e1c179be2cf2444978f568e7476427, type: 2}
@@ -1069,7 +1074,7 @@ MonoBehaviour:
   bgmSource: {fileID: 0}
   sfxSource: {fileID: 0}
   voiceSource: {fileID: 0}
-  currentSceneName:
+  currentSceneName: 
   currentBgm: {fileID: 0}
   footstepsPlaying: 0
 --- !u!1660057539 &9223372036854775807

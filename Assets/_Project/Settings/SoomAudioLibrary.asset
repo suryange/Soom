@@ -12,18 +12,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b62d8f3869134e44ac0af8cb41df1e9d, type: 3}
   m_Name: SoomAudioLibrary
   m_EditorClassIdentifier: Assembly-CSharp::SoomAudioLibrarySO
-  interactionSfx: {fileID: 0}
-  interactionVolume: 1
-  scene03Bgm: {fileID: 0}
-  scene03BgmVolume: 1
+  interactionSfx: {fileID: 8300000, guid: 16fba6d30ed741d4a9fdd6e79ee2f3ac, type: 3}
+  interactionVolume: 0.3
+  scene03Bgm: {fileID: 8300000, guid: d97a55ecea4704f15a63afbddecaf496, type: 3}
+  scene03BgmVolume: 0.8
   bgmFadeDuration: 1
-  sandFootstepClips: []
-  sandFootstepVolume: 1
+  sandFootstepClips:
+  - {fileID: 8300000, guid: da752d8cee9292a45a7dc4d819d43545, type: 3}
+  sandFootstepVolume: 0.3
   footstepInterval: 0.5
   footstepPitchRange: {x: 0.95, y: 1.05}
   foxRevealSfx: {fileID: 0}
   foxRevealVolume: 1
   membraneClearSfx: {fileID: 0}
   membraneClearVolume: 1
-  breathLoopSuccessSfx: {fileID: 0}
-  breathLoopSuccessVolume: 1
+  breathLoopSuccessSfx: {fileID: 8300000, guid: 16fba6d30ed741d4a9fdd6e79ee2f3ac, type: 3}
+  breathLoopSuccessVolume: 0.3
