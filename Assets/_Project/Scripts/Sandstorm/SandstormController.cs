@@ -390,7 +390,7 @@ public class SandstormController : MonoBehaviour
             isMissionOwnerActive = true;
             missionSuccessInProgress = false;
             SetActive(instructionUIRoot, true);
-            if (breathCircleUI != null) breathCircleUI.Show();
+            if (breathCircleUI != null) breathCircleUI.Show(this);
             return;
         }
 
@@ -398,7 +398,7 @@ public class SandstormController : MonoBehaviour
         {
             isMissionOwnerActive = false;
             SetActive(instructionUIRoot, false);
-            if (breathCircleUI != null) breathCircleUI.Hide();
+            if (breathCircleUI != null) breathCircleUI.Hide(this);
 
             CurrentState = State.Active;
             LerpEmission(maxEmissionRate, calmStepDuration);
@@ -415,14 +415,14 @@ public class SandstormController : MonoBehaviour
         if (state != PlayerState.BreathingActive || !isMissionOwnerActive) return;
 
         SetActive(instructionUIRoot, false);
-        if (!missionSuccessInProgress && breathCircleUI != null) breathCircleUI.Hide();
+        if (!missionSuccessInProgress && breathCircleUI != null) breathCircleUI.Hide(this);
     }
 
     private IEnumerator HideBreathUIAfterDelay(float delay)
     {
         if (delay > 0f)
             yield return new WaitForSeconds(delay);
-        if (breathCircleUI != null) breathCircleUI.Hide();
+        if (breathCircleUI != null) breathCircleUI.Hide(this);
         hideBreathUIRoutine = null;
     }
 
@@ -485,7 +485,7 @@ public class SandstormController : MonoBehaviour
         SetActive(chapterUIRoot, false);
         SetActive(zoneTextUIRoot, false);
         SetActive(instructionUIRoot, false);
-        if (breathCircleUI != null) breathCircleUI.Hide();
+        if (breathCircleUI != null) breathCircleUI.Hide(this);
 
         isMissionOwnerActive = false;
         missionSuccessInProgress = false;

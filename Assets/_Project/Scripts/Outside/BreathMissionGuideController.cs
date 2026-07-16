@@ -97,6 +97,13 @@ public class BreathMissionGuideController : MonoBehaviour
             return;
         }
 
+        // 다른 미션이 공용 UI를 소유 중이면 이 컨트롤러의 비표시 동기화는 이미 충족된 것이다.
+        if (!visible && breathCircleUI.VisibilityOwner != this)
+        {
+            lastRequestedBreathCircleVisibility = false;
+            return;
+        }
+
         bool hierarchyMatches = breathCircleUI.IsVisibilityRequested == visible &&
                                 (!visible || breathCircleUI.gameObject.activeInHierarchy);
 
@@ -104,9 +111,9 @@ public class BreathMissionGuideController : MonoBehaviour
             return;
 
         if (visible)
-            breathCircleUI.Show();
+            breathCircleUI.Show(this);
         else
-            breathCircleUI.Hide();
+            breathCircleUI.Hide(this);
 
         lastRequestedBreathCircleVisibility = visible;
         Debug.Log($"[BreathMissionGuideController] Breath Circle {(visible ? "표시" : "숨김")}. " +

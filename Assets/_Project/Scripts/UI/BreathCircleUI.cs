@@ -40,11 +40,16 @@ public class BreathCircleUI : MonoBehaviour
     [SerializeField] CanvasGroup group;
     [SerializeField] float fadeDuration = 0.3f;
 
-    [Header("XR display")]
-    [Tooltip("On Show(), place the panel once in front of the camera, then leave it fixed in world " +
-             "space so the head can turn away from it (standard VR comfort). It is NOT glued to the head.")]
+    [Header("XR Display - Camera Placement")]
+    [Tooltip("활성화하면 UI를 카메라 기준 위치에 배치합니다. 배치 후에는 월드 공간에 고정되어 머리를 따라다니지 않습니다.")]
     [SerializeField] bool followMainCamera = true;
+    [Tooltip("카메라 기준 오프셋입니다. X=좌우, Y=높이, Z=카메라 앞 거리입니다.")]
     [SerializeField] Vector3 cameraLocalPosition = new Vector3(0f, -0.08f, 0.75f);
+    [Min(0.01f)]
+    [Tooltip("씬에 저장된 BreathCircle Transform Scale에 곱할 균일 크기 배율입니다.")]
+    [SerializeField] float uiScale = 1f;
+    [Tooltip("활성화하면 미션이 Show()를 요청할 때마다 현재 카메라 정면에 다시 배치합니다.")]
+    [SerializeField] bool repositionOnShow = true;
 
     [Header("Visibility")]
     [Range(0f, 1f)] [SerializeField] float minimumOutlineAlpha = 0.95f;
@@ -64,15 +69,20 @@ public class BreathCircleUI : MonoBehaviour
     Coroutine _fadeRoutine;
     bool _visibleRequested;
     bool _placed; // world-anchor latch: true once the panel has been placed for the current Show()
+    Vector3 _authoredLocalScale;
+    Object _visibilityOwner;
     int _observedBreathValueVersion = -1;
     int _observedLoopVersion = -1;
 
     public bool IsVisibilityRequested => _visibleRequested;
     public bool IsEventChannelSubscribed => _eventChannelSubscribed;
+    public Object VisibilityOwner => _visibilityOwner;
 
     void Awake()
     {
         if (!group) group = GetComponent<CanvasGroup>();
+        if (_authoredLocalScale == Vector3.zero)
+            _authoredLocalScale = transform.localScale;
         if (bead) _beadHomeLocalPos = bead.rectTransform.localPosition;
         EnsureSprites();
         EnsureHighVisibility();
@@ -264,14 +274,30 @@ public class BreathCircleUI : MonoBehaviour
         _pulseRoutine = null;
     }
 
-    /// <summary>Fade the whole UI in and reset the slots for a fresh session.</summary>
+    /// <summary>Legacy caller. New mission code should pass its owner explicitly.</summary>
     public void Show()
     {
-        if (_visibleRequested && gameObject.activeInHierarchy)
+        Show(this);
+    }
+
+    /// <summary>Fade the UI in and grant this mission exclusive visibility ownership.</summary>
+    public void Show(Object owner)
+    {
+        if (owner == null)
+        {
+            Debug.LogError("[BreathCircleUI] Show 요청 소유자가 없습니다.", this);
+            return;
+        }
+
+        if (_visibleRequested && _visibilityOwner == owner && gameObject.activeInHierarchy)
             return;
 
+        _visibilityOwner = owner;
         _visibleRequested = true;
-        _placed = false; // re-anchor in front of wherever the player is looking at mission start
+        if (repositionOnShow || !_placed)
+            _placed = false;
+        ApplyConfiguredScale();
+        events?.ResetSession();
         EnsureRenderConfiguration();
         ResetSlots();
         gameObject.SetActive(true);
@@ -280,6 +306,16 @@ public class BreathCircleUI : MonoBehaviour
 
     public void Hide()
     {
+        Hide(this);
+    }
+
+    /// <summary>Hide only when the caller still owns the shared UI.</summary>
+    public void Hide(Object owner)
+    {
+        if (owner == null || _visibilityOwner != owner)
+            return;
+
+        _visibilityOwner = null;
         _visibleRequested = false;
         if (!gameObject.activeInHierarchy) return; // already hidden; can't run a fade coroutine
         Fade(0f);
@@ -304,6 +340,13 @@ public class BreathCircleUI : MonoBehaviour
         PlaceInWorldOnce();
         EnsureSprites();
         EnsureHighVisibility();
+    }
+
+    void ApplyConfiguredScale()
+    {
+        if (_authoredLocalScale == Vector3.zero)
+            _authoredLocalScale = transform.localScale;
+        transform.localScale = _authoredLocalScale * Mathf.Max(0.01f, uiScale);
     }
 
     void EnsureHighVisibility()
