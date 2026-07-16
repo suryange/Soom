@@ -533,9 +533,122 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 10209, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &1234500001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1234500002}
+  - component: {fileID: 1234500003}
+  - component: {fileID: 1234500004}
+  - component: {fileID: 1234500005}
+  m_Layer: 0
+  m_Name: StartSceneFlow
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1234500002
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1234500001}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1234500003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1234500001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2c513b1297e641f0af4774649fc352d8, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  logoPrefab: {fileID: 100100000, guid: 51760f03f255bd7488099e101ce9a191, type: 3}
+  menuPrefab: {fileID: 100100000, guid: 90cb6ea1d1e519d41af53446ecab08c7, type: 3}
+  nextScene: 1
+  fadeInDuration: 0.5
+  logoMinDisplay: 1
+  menuDistance: 2
+  menuHeightOffset: 0
+  cutsceneFallbackDuration: 4
+--- !u!114 &1234500004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1234500001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 467f7393ff8e4e93854c9347b98f0012, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  targetTransform: {fileID: 0}
+  positionAmplitude: {x: 0.05, y: 0.05, z: 0.03}
+  rotationAmplitude: {x: 2, y: 2, z: 3}
+  frequency: 2.5
+  intensityOverTime:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0.25
+      inSlope: 0.75
+      outSlope: 0.75
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0.75
+      outSlope: 0.75
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+--- !u!114 &1234500005
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1234500001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 65feaab48aba4ade92460a35eafaf259, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  director: {fileID: 0}
+  cameraShake: {fileID: 1234500004}
+  loadingUI: {fileID: 0}
+  landingSequence: {fileID: 0}
+  fallbackDuration: 4
+  landingHoldDuration: 0.5
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
   - {fileID: 526489607}
   - {fileID: 212342771}
+  - {fileID: 1234500002}

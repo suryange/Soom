@@ -35,14 +35,18 @@
 - [ ] AudioMixer 에셋 수동 생성 + SoomAudioManager 연결 (그룹: BGM/SFX/Voice, 노출 파라미터명 MasterVolume/BGMVolume/SFXVolume/VoiceVolume)
 - [ ] 안내 음성/SFX 에셋 확보 및 등록
 
-## 1. 스타팅 화면 (Scene_01_Start) — 씬 스텁만 존재
+## 1. 스타팅 화면 (Scene_01_Start) — 시작 흐름 배선 완료
 
-- [ ] 1.1 씬 진입 카메라 페이드 인 (ScreenFader 사용)
-- [ ] 1.2.1 메인 UI — 게임 시작
+> `StartSceneFlow`(부트스트랩)로 로고→메뉴→컷신 스텁→Scene_02 흐름 배선. 민서님 UI 프리팹
+> (01 start_logo / 02 start_menu)을 런타임 인스턴스화. EventSystem/ScreenFader가 씬에 없어
+> 부트스트랩이 런타임 생성. 세부 연출(Timeline·CLI·파티클·설정/팀소개 패널)은 아직 스텁/미구현.
+
+- [x] 1.1 씬 진입 카메라 페이드 인 (ScreenFader 확보 + Scene_02 전환 페이드 아웃/인 동작)
+- [x] 1.2.1 메인 UI — 게임 시작 (로고 아무 입력 → 메뉴 START 버튼 → 컷신 → Scene_02)
 - [ ] 1.2.2 환경 설정 (Recenter / 볼륨(SoomAudioManager) / Continuous↔Snap Turn)
 - [ ] 1.2.3 팀 소개 패널
 - [ ] 1.2.4 닫기 (Application.Quit)
-- [ ] 1.3.1 우주선 추락 컷신 (Timeline + Perlin 카메라 셰이크)
+- [~] 1.3.1 우주선 추락 컷신 — Perlin 카메라 셰이크 스텁만 배선 (Timeline 미제작)
 - [ ] 1.3.2 CLI 터미널 로딩 UI (타이핑 효과) — SOOMSceneManager 로딩 TODO와 연계
 - [ ] 1.3.3 추락 완료 연출 (탑뷰 + 연기/스파크 파티클)
 
