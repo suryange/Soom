@@ -2,6 +2,7 @@ using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 /// <summary>
 /// 모래바람 구역(기능 명세 4장) 씬 배선용 원클릭 에디터 빌더.
@@ -12,15 +13,21 @@ using UnityEngine;
 /// Unity 에디터를 열고 있는 사람이 이 메뉴 아이템을 직접 실행해서 만들어야 한다.
 /// 이미 "SandstormZone" 루트가 씬에 있으면 중복 생성 없이 그 오브젝트를 선택만 한다.
 /// </summary>
-internal static class SandstormZoneBuilder
+public static class SandstormZoneBuilder
 {
     private const string RootName = "SandstormZone";
     private const string BreathEventsChannelPath = "Assets/_Project/Scripts/System/BreathEventsChannel.asset";
     private const string KoreanFontAssetPath = "Assets/_Project/Resources/Fonts/NotoSansKR SDF.asset";
+    private const string DustTexturePath = "Assets/_Project/Art/Particles/DustPuff.asset";
+    private const string ParticleMaterialPath = "Assets/_Project/Materials/SandParticle.mat";
+    private const string VignetteMaterialPath = "Assets/_Project/Materials/DustVignette.mat";
+    private const string Scene03Path = "Assets/_Project/Scenes/Scene_03_InGame_Outside.unity";
 
     [MenuItem("SOOM/Scene 03/Setup Sandstorm Breath Zone")]
     public static void Build()
     {
+        Material particleMaterial = BuildDustAssets();
+        Material vignetteMaterial = AssetDatabase.LoadAssetAtPath<Material>(VignetteMaterialPath);
         GameObject existingRoot = GameObject.Find(RootName);
 
         BreathEventsSO breathEvents = AssetDatabase.LoadAssetAtPath<BreathEventsSO>(BreathEventsChannelPath);
@@ -48,7 +55,8 @@ internal static class SandstormZoneBuilder
         }
 
         GameObject triggerGO = BuildTriggerZone(root.transform);
-        GameObject particlesGO = BuildParticles(root.transform);
+        GameObject particlesGO = BuildParticles(root.transform, particleMaterial);
+        Renderer vignetteRenderer = BuildVignetteOverlay(vignetteMaterial);
         GameObject chapterUI = BuildWorldText(
             root.transform, "ChapterUI",
             "<size=140%>끝없는 모래</size>\n불안한 첫 발",
@@ -82,7 +90,8 @@ internal static class SandstormZoneBuilder
             Debug.LogWarning("[SandstormZoneBuilder] 런타임 Guiding Light 공급자인 HologramMessage를 찾지 못했습니다.");
 
         WireController(controller, breathEvents, chapterUI, zoneTextUI, instructionUI,
-            particlesGO.GetComponent<ParticleSystem>(), guidingLight, guidingLightProvider, breathCircleUI);
+            particlesGO.GetComponent<ParticleSystem>(), vignetteRenderer,
+            guidingLight, guidingLightProvider, breathCircleUI);
 
         WireTrigger(triggerGO.GetComponent<SandstormZoneTrigger>(), controller);
 
@@ -91,7 +100,16 @@ internal static class SandstormZoneBuilder
         Selection.activeGameObject = root;
 
         Debug.Log("[SandstormZoneBuilder] 모래폭풍 구역 생성/갱신 완료. " +
-                  "기존 Transform은 보존했으며, Wind Clip 미지정 시 절차적 바람 루프를 사용합니다.");
+                  "먼지 텍스처/머티리얼/파티클/XR 비네트 참조를 갱신했습니다.");
+    }
+
+    /// <summary>CI 또는 명령줄에서 Scene 03을 열고 동일한 빌더를 실행한다.</summary>
+    public static void BuildScene03Batch()
+    {
+        EditorSceneManager.OpenScene(Scene03Path, OpenSceneMode.Single);
+        Build();
+        EditorSceneManager.SaveOpenScenes();
+        AssetDatabase.SaveAssets();
     }
 
     private static Vector3 FindAnchorPosition()
@@ -127,7 +145,7 @@ internal static class SandstormZoneBuilder
         return go;
     }
 
-    private static GameObject BuildParticles(Transform parent)
+    private static GameObject BuildParticles(Transform parent, Material particleMaterial)
     {
         Transform existing = parent.Find("SandstormParticles");
         GameObject go = existing != null ? existing.gameObject : CreateChild(parent, "SandstormParticles");
@@ -138,11 +156,13 @@ internal static class SandstormZoneBuilder
 
         ParticleSystem.MainModule main = ps.main;
         main.loop = true;
-        main.startLifetime = 4f;
-        main.startSpeed = 0.6f;
-        main.startSize = 0.6f;
-        main.startColor = new Color(0.76f, 0.68f, 0.5f, 0.35f);
-        main.maxParticles = 500;
+        main.startLifetime = new ParticleSystem.MinMaxCurve(2.8f, 5.2f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(0.15f, 0.55f);
+        main.startSize = new ParticleSystem.MinMaxCurve(0.45f, 1.8f);
+        main.startColor = new ParticleSystem.MinMaxGradient(
+            new Color(0.62f, 0.50f, 0.33f, 0.18f),
+            new Color(0.82f, 0.70f, 0.48f, 0.38f));
+        main.maxParticles = 1600;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
 
         ParticleSystem.EmissionModule emission = ps.emission;
@@ -150,7 +170,21 @@ internal static class SandstormZoneBuilder
 
         ParticleSystem.ShapeModule shape = ps.shape;
         shape.shapeType = ParticleSystemShapeType.Box;
-        shape.scale = new Vector3(12f, 4f, 12f);
+        shape.scale = new Vector3(16f, 5f, 16f);
+
+        ParticleSystem.VelocityOverLifetimeModule velocity = ps.velocityOverLifetime;
+        velocity.enabled = true;
+        velocity.space = ParticleSystemSimulationSpace.World;
+        velocity.x = new ParticleSystem.MinMaxCurve(2.2f, 4.2f);
+        velocity.y = new ParticleSystem.MinMaxCurve(-0.15f, 0.25f);
+        velocity.z = new ParticleSystem.MinMaxCurve(-0.35f, 0.35f);
+
+        ParticleSystem.NoiseModule noise = ps.noise;
+        noise.enabled = true;
+        noise.strength = new ParticleSystem.MinMaxCurve(0.22f, 0.65f);
+        noise.frequency = 0.18f;
+        noise.scrollSpeed = 0.22f;
+        noise.octaveCount = 1;
 
         ParticleSystem.ColorOverLifetimeModule colorOverLifetime = ps.colorOverLifetime;
         colorOverLifetime.enabled = true;
@@ -170,17 +204,183 @@ internal static class SandstormZoneBuilder
             });
         colorOverLifetime.color = gradient;
 
+        ParticleSystem.SizeOverLifetimeModule sizeOverLifetime = ps.sizeOverLifetime;
+        sizeOverLifetime.enabled = true;
+        AnimationCurve sizeCurve = new AnimationCurve(
+            new Keyframe(0f, 0.15f), new Keyframe(0.22f, 1f),
+            new Keyframe(0.72f, 0.9f), new Keyframe(1f, 0.05f));
+        sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(1f, sizeCurve);
+
         ParticleSystemRenderer psRenderer = go.GetComponent<ParticleSystemRenderer>();
         if (psRenderer != null)
         {
             psRenderer.renderMode = ParticleSystemRenderMode.Billboard;
-            Material defaultParticleMat = AssetDatabase.GetBuiltinExtraResource<Material>("Default-Particle.mat");
-            if (defaultParticleMat != null) psRenderer.sharedMaterial = defaultParticleMat;
+            psRenderer.alignment = ParticleSystemRenderSpace.View;
+            psRenderer.shadowCastingMode = ShadowCastingMode.Off;
+            psRenderer.receiveShadows = false;
+            if (particleMaterial != null) psRenderer.sharedMaterial = particleMaterial;
         }
 
         if (!EditorApplication.isPlaying)
             ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         return go;
+    }
+
+    private static Material BuildDustAssets()
+    {
+        EnsureFolder("Assets/_Project/Art");
+        EnsureFolder("Assets/_Project/Art/Particles");
+        EnsureFolder("Assets/_Project/Materials");
+
+        Texture2D dustTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(DustTexturePath);
+        if (dustTexture == null)
+        {
+            const int size = 256;
+            dustTexture = new Texture2D(size, size, TextureFormat.RGBA32, true, true)
+            {
+                name = "DustPuff",
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+                anisoLevel = 1
+            };
+
+            Color[] pixels = new Color[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = (x + 0.5f) / size * 2f - 1f;
+                float v = (y + 0.5f) / size * 2f - 1f;
+                float warpX = (Mathf.PerlinNoise(x * 0.031f + 18.2f, y * 0.031f + 7.4f) - 0.5f) * 0.24f;
+                float warpY = (Mathf.PerlinNoise(x * 0.027f + 51.7f, y * 0.027f + 33.1f) - 0.5f) * 0.24f;
+                float radius = Mathf.Sqrt((u + warpX) * (u + warpX) + (v + warpY) * (v + warpY));
+                float falloff = 1f - Mathf.SmoothStep(0.18f, 1f, radius);
+                float detail = Mathf.Lerp(0.55f, 1f,
+                    Mathf.PerlinNoise(x * 0.064f + 4.3f, y * 0.064f + 12.9f));
+                float alpha = Mathf.Clamp01(falloff * detail);
+                alpha *= alpha;
+                pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
+            }
+            dustTexture.SetPixels(pixels);
+            dustTexture.Apply(true, false);
+            AssetDatabase.CreateAsset(dustTexture, DustTexturePath);
+        }
+
+        Shader particleShader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+        if (particleShader == null)
+            particleShader = Shader.Find("Particles/Standard Unlit");
+        Material particleMaterial = CreateOrUpdateMaterial(ParticleMaterialPath, particleShader);
+        if (particleMaterial != null)
+        {
+            if (particleMaterial.HasProperty("_BaseMap")) particleMaterial.SetTexture("_BaseMap", dustTexture);
+            if (particleMaterial.HasProperty("_MainTex")) particleMaterial.SetTexture("_MainTex", dustTexture);
+            if (particleMaterial.HasProperty("_BaseColor"))
+                particleMaterial.SetColor("_BaseColor", new Color(0.78f, 0.64f, 0.42f, 0.5f));
+            if (particleMaterial.HasProperty("_Surface")) particleMaterial.SetFloat("_Surface", 1f);
+            if (particleMaterial.HasProperty("_Blend")) particleMaterial.SetFloat("_Blend", 0f);
+            if (particleMaterial.HasProperty("_SrcBlend"))
+                particleMaterial.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+            if (particleMaterial.HasProperty("_DstBlend"))
+                particleMaterial.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+            if (particleMaterial.HasProperty("_ZWrite")) particleMaterial.SetFloat("_ZWrite", 0f);
+            particleMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            particleMaterial.renderQueue = (int)RenderQueue.Transparent;
+            EditorUtility.SetDirty(particleMaterial);
+        }
+
+        Shader vignetteShader = Shader.Find("SOOM/DustVignette");
+        Material vignetteMaterial = CreateOrUpdateMaterial(VignetteMaterialPath, vignetteShader);
+        if (vignetteMaterial != null)
+        {
+            vignetteMaterial.SetColor("_Color", new Color(0.58f, 0.45f, 0.28f, 0.78f));
+            vignetteMaterial.SetFloat("_Obscurity", 0f);
+            vignetteMaterial.SetFloat("_Clarity", 1f);
+            EditorUtility.SetDirty(vignetteMaterial);
+        }
+
+        AssetDatabase.SaveAssets();
+        return particleMaterial;
+    }
+
+    private static Material CreateOrUpdateMaterial(string path, Shader shader)
+    {
+        Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (shader == null)
+        {
+            Debug.LogError($"[SandstormZoneBuilder] Shader를 찾지 못해 머티리얼을 만들 수 없습니다: {path}");
+            return material;
+        }
+        if (material == null)
+        {
+            material = new Material(shader);
+            AssetDatabase.CreateAsset(material, path);
+        }
+        else if (material.shader != shader)
+        {
+            material.shader = shader;
+        }
+        return material;
+    }
+
+    private static void EnsureFolder(string path)
+    {
+        if (AssetDatabase.IsValidFolder(path)) return;
+        int slash = path.LastIndexOf('/');
+        string parent = path.Substring(0, slash);
+        string name = path.Substring(slash + 1);
+        EnsureFolder(parent);
+        AssetDatabase.CreateFolder(parent, name);
+    }
+
+    private static Renderer BuildVignetteOverlay(Material material)
+    {
+        Camera camera = Camera.main;
+        if (camera == null)
+        {
+            foreach (Camera candidate in Object.FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (candidate.name.Contains("Main Camera") || candidate.transform.parent?.name.Contains("XR") == true)
+                {
+                    camera = candidate;
+                    break;
+                }
+            }
+        }
+        if (camera == null)
+        {
+            Debug.LogWarning("[SandstormZoneBuilder] XR Main Camera를 찾지 못해 DustVignetteOverlay를 생성하지 않았습니다.");
+            return null;
+        }
+
+        Transform existing = camera.transform.Find("DustVignetteOverlay");
+        GameObject overlay;
+        if (existing != null)
+        {
+            overlay = existing.gameObject;
+        }
+        else
+        {
+            overlay = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            overlay.name = "DustVignetteOverlay";
+            Undo.RegisterCreatedObjectUndo(overlay, "Create Dust Vignette Overlay");
+            Object.DestroyImmediate(overlay.GetComponent<Collider>());
+            overlay.transform.SetParent(camera.transform, false);
+        }
+
+        float distance = Mathf.Max(camera.nearClipPlane + 0.03f, 0.08f);
+        float coverage = distance * 10f;
+        overlay.transform.localPosition = new Vector3(0f, 0f, distance);
+        overlay.transform.localRotation = Quaternion.identity;
+        overlay.transform.localScale = new Vector3(coverage, coverage, 1f);
+        overlay.layer = camera.gameObject.layer;
+
+        MeshRenderer renderer = overlay.GetComponent<MeshRenderer>();
+        renderer.sharedMaterial = material;
+        renderer.shadowCastingMode = ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+        renderer.lightProbeUsage = LightProbeUsage.Off;
+        renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
+        renderer.enabled = false;
+        return renderer;
     }
 
     private static GameObject BuildWorldText(Transform parent, string name, string text, Vector3 localPosition,
@@ -233,7 +433,7 @@ internal static class SandstormZoneBuilder
 
     private static void WireController(SandstormController controller, BreathEventsSO breathEvents,
         GameObject chapterUI, GameObject zoneTextUI, GameObject instructionUI,
-        ParticleSystem particles, GuidingLightController guidingLight,
+        ParticleSystem particles, Renderer vignetteRenderer, GuidingLightController guidingLight,
         HologramMessage guidingLightProvider, BreathCircleUI breathCircleUI)
     {
         SerializedObject so = new SerializedObject(controller);
@@ -241,6 +441,7 @@ internal static class SandstormZoneBuilder
         so.FindProperty("chapterUIRoot").objectReferenceValue = chapterUI;
         so.FindProperty("zoneTextUIRoot").objectReferenceValue = zoneTextUI;
         so.FindProperty("sandstormParticles").objectReferenceValue = particles;
+        so.FindProperty("dustVignetteRenderer").objectReferenceValue = vignetteRenderer;
         so.FindProperty("guidingLight").objectReferenceValue = guidingLight;
         so.FindProperty("guidingLightProvider").objectReferenceValue = guidingLightProvider;
         SerializedProperty postClearWaypoints = so.FindProperty("postClearWaypoints");

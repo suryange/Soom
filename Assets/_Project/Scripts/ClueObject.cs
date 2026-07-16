@@ -204,6 +204,8 @@ public class HologramMessage : MonoBehaviour, IInteractable
 
         if (progressBeforeViewing == MessageProgress.Closed)
         {
+            SoomAudioManager.Instance?.PlayInteractionSfx();
+
             // 첫 Grab에서만 상호작용 상태로 전환하고 메시지를 펼친다.
             if (PlayerStateManager.Instance != null)
                 PlayerStateManager.Instance.ChangeState(PlayerState.Interact);

@@ -34,6 +34,10 @@ public class SandstormController : MonoBehaviour
 
     [Header("4.2 모래폭풍 파티클")]
     [SerializeField] private ParticleSystem sandstormParticles;
+    [Tooltip("XR 카메라 자식의 DustVignetteOverlay Renderer.")]
+    [SerializeField] private Renderer dustVignetteRenderer;
+    [Tooltip("XR의 비대칭 양안 FOV까지 Quad가 덮도록 적용하는 크기 배수.")]
+    [SerializeField, Min(4f)] private float vignetteOverscan = 10f;
     [SerializeField] private float maxEmissionRate = 300f;
     [Tooltip("Idle -> Active까지 파티클/Fog가 차오르는 데 걸리는 시간(초).")]
     [SerializeField] private float riseDuration = 3f;
@@ -41,6 +45,7 @@ public class SandstormController : MonoBehaviour
     [Header("4.2 Fog (시야 제한)")]
     [Tooltip("폭풍 최대치일 때의 Fog Density. 시작 시점의 RenderSettings.fogDensity를 기준값(Clear 상태)으로 사용한다.")]
     [SerializeField] private float maxFogDensity = 0.12f;
+    [SerializeField] private Color sandstormFogColor = new Color(0.55f, 0.45f, 0.31f, 1f);
 
     [Header("4.2 바람 SFX (옵션)")]
     [Tooltip("루프 재생할 바람 SFX. 비워두면 재생하지 않는다 (NullReferenceException 방지).")]
@@ -72,23 +77,26 @@ public class SandstormController : MonoBehaviour
     [SerializeField] private float successUIHideDelay = 0.9f;
 
     public State CurrentState { get; private set; } = State.Idle;
+    public float CurrentObscurity => currentObscurity;
 
-    private float clearFogDensity;   // 구역 진입 전(맑은 상태) 기준 Fog Density
+    private float clearFogDensity;
+    private Color clearFogColor;
     private bool clearFogEnabled;
     private FogMode clearFogMode;
     private bool hasCapturedEnvironment;
-    private float currentEmissionRate;
+    private float currentObscurity;
     private ParticleSystem.EmissionModule emissionModule;
     private bool hasEmissionModule;
+    private MaterialPropertyBlock vignettePropertyBlock;
+    private static readonly int ObscurityId = Shader.PropertyToID("_Obscurity");
+    private static readonly int ClarityId = Shader.PropertyToID("_Clarity");
 
     private AudioSource windAudioSource;
 
-    private Coroutine emissionRoutine;
-    private Coroutine fogRoutine;
+    private Coroutine obscurityRoutine;
     private Coroutine introUIRoutine;
     private Coroutine activateAfterRiseRoutine;
     private Coroutine stopParticlesRoutine;
-    private Coroutine windVolumeRoutine;
     private Coroutine hideBreathUIRoutine;
     private bool isMissionOwnerActive;
     private bool missionSuccessInProgress;
@@ -101,7 +109,14 @@ public class SandstormController : MonoBehaviour
         {
             emissionModule = sandstormParticles.emission;
             hasEmissionModule = true;
-            currentEmissionRate = emissionModule.rateOverTime.constant;
+            emissionModule.rateOverTime = 0f;
+        }
+
+        if (dustVignetteRenderer != null)
+        {
+            vignettePropertyBlock = new MaterialPropertyBlock();
+            EnsureVignetteCoverage();
+            dustVignetteRenderer.enabled = false;
         }
 
         if (guidingLight == null)
@@ -174,6 +189,7 @@ public class SandstormController : MonoBehaviour
         if (CurrentState != State.Idle) return;
 
         CaptureEnvironmentSettings();
+        ApplyObscurity(0f);
         ResolveActiveGuidingLight();
 
         SetActive(chapterUIRoot, true);
@@ -208,8 +224,7 @@ public class SandstormController : MonoBehaviour
             sandstormParticles.Play();
         }
 
-        LerpEmission(maxEmissionRate, riseDuration);
-        LerpFog(maxFogDensity, riseDuration);
+        LerpObscurity(1f, riseDuration);
         PlayWindLoop();
 
         if (guidingLight != null)
@@ -258,9 +273,7 @@ public class SandstormController : MonoBehaviour
             ? Mathf.Clamp01(1f - (float)clampedCount / totalBreathLoops)
             : 0f;
 
-        LerpEmission(maxEmissionRate * remainingRatio, calmStepDuration);
-        LerpFog(Mathf.Lerp(clearFogDensity, maxFogDensity, remainingRatio), calmStepDuration);
-        SetWindVolume(remainingRatio);
+        LerpObscurity(remainingRatio, calmStepDuration);
     }
 
     private void HandleMissionSuccess()
@@ -271,9 +284,7 @@ public class SandstormController : MonoBehaviour
         isMissionOwnerActive = false;
         CurrentState = State.Cleared;
 
-        LerpEmission(0f, clearDuration);
-        LerpFog(clearFogDensity, clearDuration);
-        FadeWindVolume(0f, clearDuration, true);
+        LerpObscurity(0f, clearDuration);
 
         if (sandstormParticles != null)
         {
@@ -401,9 +412,7 @@ public class SandstormController : MonoBehaviour
             if (breathCircleUI != null) breathCircleUI.Hide(this);
 
             CurrentState = State.Active;
-            LerpEmission(maxEmissionRate, calmStepDuration);
-            LerpFog(maxFogDensity, calmStepDuration);
-            SetWindVolume(1f);
+            LerpObscurity(1f, calmStepDuration);
 
             if (PlayerStateManager.Instance.IsBreathMissionOwner(BreathMissionId.Sandstorm))
                 PlayerStateManager.Instance.ChangeState(PlayerState.MissionReady);
@@ -435,8 +444,10 @@ public class SandstormController : MonoBehaviour
         {
             RenderSettings.fog = clearFogEnabled;
             RenderSettings.fogMode = clearFogMode;
+            RenderSettings.fogColor = clearFogColor;
             RenderSettings.fogDensity = clearFogDensity;
         }
+        StopWindLoop();
         stopParticlesRoutine = null;
     }
 
@@ -446,6 +457,7 @@ public class SandstormController : MonoBehaviour
 
         clearFogEnabled = RenderSettings.fog;
         clearFogMode = RenderSettings.fogMode;
+        clearFogColor = RenderSettings.fogColor;
         clearFogDensity = RenderSettings.fogDensity;
         hasCapturedEnvironment = true;
     }
@@ -455,19 +467,13 @@ public class SandstormController : MonoBehaviour
         if (!hasCapturedEnvironment && CurrentState == State.Idle) return;
 
         StopAllCoroutines();
-        emissionRoutine = null;
-        fogRoutine = null;
+        obscurityRoutine = null;
         introUIRoutine = null;
         activateAfterRiseRoutine = null;
         stopParticlesRoutine = null;
-        windVolumeRoutine = null;
         hideBreathUIRoutine = null;
 
-        if (hasEmissionModule)
-        {
-            currentEmissionRate = 0f;
-            emissionModule.rateOverTime = 0f;
-        }
+        ApplyObscurity(0f);
         if (sandstormParticles != null)
             sandstormParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
 
@@ -475,6 +481,7 @@ public class SandstormController : MonoBehaviour
         {
             RenderSettings.fog = clearFogEnabled;
             RenderSettings.fogMode = clearFogMode;
+            RenderSettings.fogColor = clearFogColor;
             RenderSettings.fogDensity = clearFogDensity;
         }
 
@@ -493,25 +500,22 @@ public class SandstormController : MonoBehaviour
     }
 
     // =========================================================
-    // 파티클 Emission Lerp
+    // 비네트/파티클/Fog/SFX를 하나의 시각 강도로 구동
     // =========================================================
-    private void LerpEmission(float targetRate, float duration)
+    private void LerpObscurity(float target, float duration)
     {
-        if (!hasEmissionModule) return;
-
-        if (emissionRoutine != null) StopCoroutine(emissionRoutine);
-        emissionRoutine = StartCoroutine(LerpEmissionRoutine(targetRate, duration));
+        if (obscurityRoutine != null) StopCoroutine(obscurityRoutine);
+        obscurityRoutine = StartCoroutine(LerpObscurityRoutine(Mathf.Clamp01(target), duration));
     }
 
-    private IEnumerator LerpEmissionRoutine(float targetRate, float duration)
+    private IEnumerator LerpObscurityRoutine(float target, float duration)
     {
-        float start = currentEmissionRate;
+        float start = currentObscurity;
 
         if (duration <= 0f)
         {
-            currentEmissionRate = targetRate;
-            emissionModule.rateOverTime = targetRate;
-            emissionRoutine = null;
+            ApplyObscurity(target);
+            obscurityRoutine = null;
             yield break;
         }
 
@@ -519,47 +523,56 @@ public class SandstormController : MonoBehaviour
         while (elapsed < duration)
         {
             elapsed += Time.deltaTime;
-            currentEmissionRate = Mathf.Lerp(start, targetRate, elapsed / duration);
-            emissionModule.rateOverTime = currentEmissionRate;
+            ApplyObscurity(Mathf.Lerp(start, target, Mathf.Clamp01(elapsed / duration)));
             yield return null;
         }
 
-        currentEmissionRate = targetRate;
-        emissionModule.rateOverTime = targetRate;
-        emissionRoutine = null;
+        ApplyObscurity(target);
+        obscurityRoutine = null;
     }
 
-    // =========================================================
-    // Fog Density Lerp
-    // =========================================================
-    private void LerpFog(float targetDensity, float duration)
+    private void ApplyObscurity(float value)
     {
-        if (fogRoutine != null) StopCoroutine(fogRoutine);
-        fogRoutine = StartCoroutine(LerpFogRoutine(targetDensity, duration));
+        currentObscurity = Mathf.Clamp01(value);
+
+        if (hasEmissionModule)
+            emissionModule.rateOverTime = maxEmissionRate * currentObscurity;
+
+        if (dustVignetteRenderer != null)
+        {
+            if (vignettePropertyBlock == null) vignettePropertyBlock = new MaterialPropertyBlock();
+            dustVignetteRenderer.GetPropertyBlock(vignettePropertyBlock);
+            vignettePropertyBlock.SetFloat(ObscurityId, currentObscurity);
+            vignettePropertyBlock.SetFloat(ClarityId, 1f - currentObscurity);
+            dustVignetteRenderer.SetPropertyBlock(vignettePropertyBlock);
+            dustVignetteRenderer.enabled = currentObscurity > 0.001f;
+        }
+
+        if (hasCapturedEnvironment)
+        {
+            RenderSettings.fog = currentObscurity > 0.001f || clearFogEnabled;
+            RenderSettings.fogMode = FogMode.ExponentialSquared;
+            RenderSettings.fogColor = Color.Lerp(clearFogColor, sandstormFogColor, currentObscurity);
+            RenderSettings.fogDensity = maxFogDensity * currentObscurity;
+        }
+
+        if (windAudioSource != null)
+            windAudioSource.volume = windSfxVolume * GetSfxVolumeScale() * currentObscurity;
     }
 
-    private IEnumerator LerpFogRoutine(float targetDensity, float duration)
+    private void EnsureVignetteCoverage()
     {
-        RenderSettings.fog = true;
-        float start = RenderSettings.fogDensity;
+        Transform overlay = dustVignetteRenderer.transform;
+        Camera camera = overlay.GetComponentInParent<Camera>();
+        if (camera == null) return;
 
-        if (duration <= 0f)
-        {
-            RenderSettings.fogDensity = targetDensity;
-            fogRoutine = null;
-            yield break;
-        }
-
-        float elapsed = 0f;
-        while (elapsed < duration)
-        {
-            elapsed += Time.deltaTime;
-            RenderSettings.fogDensity = Mathf.Lerp(start, targetDensity, elapsed / duration);
-            yield return null;
-        }
-
-        RenderSettings.fogDensity = targetDensity;
-        fogRoutine = null;
+        // camera.fieldOfView/aspect는 XR 양안의 비대칭 projection을 충분히 나타내지 못한다.
+        // 거리 비례 정사각 overscan으로 약 79도의 반시야각을 덮어 Quad 가장자리 노출을 막는다.
+        float distance = Mathf.Max(camera.nearClipPlane + 0.03f, 0.08f);
+        float coverage = distance * Mathf.Max(4f, vignetteOverscan);
+        overlay.localPosition = new Vector3(0f, 0f, distance);
+        overlay.localRotation = Quaternion.identity;
+        overlay.localScale = new Vector3(coverage, coverage, 1f);
     }
 
     // =========================================================
@@ -571,58 +584,17 @@ public class SandstormController : MonoBehaviour
         if (windAudioSource == null) return;
 
         windAudioSource.clip = windLoopSfx != null ? windLoopSfx : CreateProceduralWindClip();
-        windAudioSource.volume = 0f;
+        windAudioSource.volume = windSfxVolume * GetSfxVolumeScale() * currentObscurity;
 
         if (!windAudioSource.isPlaying) windAudioSource.Play();
-        FadeWindVolume(1f, riseDuration);
     }
 
     private void StopWindLoop()
     {
-        if (windVolumeRoutine != null)
-        {
-            StopCoroutine(windVolumeRoutine);
-            windVolumeRoutine = null;
-        }
-
         if (windAudioSource != null && windAudioSource.isPlaying)
         {
             windAudioSource.Stop();
         }
-    }
-
-    private void SetWindVolume(float stormRatio)
-    {
-        FadeWindVolume(stormRatio, calmStepDuration);
-    }
-
-    private void FadeWindVolume(float stormRatio, float duration, bool stopWhenSilent = false)
-    {
-        if (windAudioSource == null) return;
-
-        if (windVolumeRoutine != null) StopCoroutine(windVolumeRoutine);
-        float target = windSfxVolume * GetSfxVolumeScale() * Mathf.Clamp01(stormRatio);
-        windVolumeRoutine = StartCoroutine(FadeWindVolumeRoutine(target, duration, stopWhenSilent));
-    }
-
-    private IEnumerator FadeWindVolumeRoutine(float target, float duration, bool stopWhenSilent)
-    {
-        float start = windAudioSource != null ? windAudioSource.volume : 0f;
-        float elapsed = 0f;
-        while (windAudioSource != null && elapsed < duration)
-        {
-            elapsed += Time.deltaTime;
-            windAudioSource.volume = Mathf.Lerp(start, target, duration > 0f ? elapsed / duration : 1f);
-            yield return null;
-        }
-
-        if (windAudioSource != null)
-        {
-            windAudioSource.volume = target;
-            if (stopWhenSilent && target <= 0f)
-                windAudioSource.Stop();
-        }
-        windVolumeRoutine = null;
     }
 
     private static AudioClip CreateProceduralWindClip()

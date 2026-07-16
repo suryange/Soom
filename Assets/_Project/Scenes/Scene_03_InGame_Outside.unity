@@ -1597,6 +1597,96 @@ Transform:
   m_Children: []
   m_Father: {fileID: 2091779817}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &145531170
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 145531171}
+  - component: {fileID: 145531172}
+  - component: {fileID: 145531173}
+  m_Layer: 0
+  m_Name: DustVignetteOverlay
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &145531171
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 145531170}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0.08}
+  m_LocalScale: {x: 0.8, y: 0.8, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 345508605}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!33 &145531172
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 145531170}
+  m_Mesh: {fileID: 10210, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!23 &145531173
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 145531170}
+  m_Enabled: 0
+  m_CastShadows: 0
+  m_ReceiveShadows: 0
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 0
+  m_ReflectionProbeUsage: 0
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 2100000, guid: be9ca6bac4de54243b021c876b6e57c4, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 1
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_MaskInteraction: 0
+  m_AdditionalVertexStreams: {fileID: 0}
 --- !u!1 &156052622
 GameObject:
   m_ObjectHideFlags: 0
@@ -1627,6 +1717,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c79fbe774a56a44418994fd1206a83dc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SoomAudioManager
+  audioLibrary: {fileID: 11400000, guid: d5d2059bb9194aa68703c12c0d74c027, type: 2}
+  breathEventsChannel: {fileID: 11400000, guid: 91e1c179be2cf2444978f568e7476427, type: 2}
   mixer: {fileID: 0}
   masterParam: MasterVolume
   bgmParam: BGMVolume
@@ -1635,6 +1727,9 @@ MonoBehaviour:
   bgmSource: {fileID: 0}
   sfxSource: {fileID: 0}
   voiceSource: {fileID: 0}
+  currentSceneName: 
+  currentBgm: {fileID: 0}
+  footstepsPlaying: 0
 --- !u!114 &156052624
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -9103,6 +9198,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 794893707089784201, guid: 47532720ad8059c4d8c7c2a9eacb3b2e, type: 3}
       insertIndex: -1
       addedObject: {fileID: 444496530}
+    - targetCorrespondingSourceObject: {fileID: 794893707089784201, guid: 47532720ad8059c4d8c7c2a9eacb3b2e, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 145531171}
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 2080488271835296982, guid: 47532720ad8059c4d8c7c2a9eacb3b2e, type: 3}
       insertIndex: -1
@@ -16010,9 +16108,9 @@ ParticleSystem:
     enabled: 1
     startLifetime:
       serializedVersion: 2
-      minMaxState: 0
-      scalar: 4
-      minScalar: 5
+      minMaxState: 3
+      scalar: 5.2
+      minScalar: 2.8
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -16063,9 +16161,9 @@ ParticleSystem:
         m_RotationOrder: 4
     startSpeed:
       serializedVersion: 2
-      minMaxState: 0
-      scalar: 0.6
-      minScalar: 5
+      minMaxState: 3
+      scalar: 0.55
+      minScalar: 0.15
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -16116,9 +16214,9 @@ ParticleSystem:
         m_RotationOrder: 4
     startColor:
       serializedVersion: 2
-      minMaxState: 0
-      minColor: {r: 1, g: 1, b: 1, a: 1}
-      maxColor: {r: 0.76, g: 0.68, b: 0.5, a: 0.35}
+      minMaxState: 2
+      minColor: {r: 0.62, g: 0.5, b: 0.33, a: 0.18}
+      maxColor: {r: 0.82, g: 0.7, b: 0.48, a: 0.38}
       maxGradient:
         serializedVersion: 2
         key0: {r: 1, g: 1, b: 1, a: 1}
@@ -16181,9 +16279,9 @@ ParticleSystem:
         m_NumAlphaKeys: 2
     startSize:
       serializedVersion: 2
-      minMaxState: 0
-      scalar: 0.6
-      minScalar: 1
+      minMaxState: 3
+      scalar: 1.8
+      minScalar: 0.45
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -16499,7 +16597,7 @@ ParticleSystem:
         m_RotationOrder: 4
     randomizeRotationDirection: 0
     gravitySource: 0
-    maxNumParticles: 500
+    maxNumParticles: 1600
     customEmitterVelocity: {x: 0, y: 0, z: 0}
     size3D: 0
     rotation3D: 0
@@ -16567,7 +16665,7 @@ ParticleSystem:
     donutRadius: 0.2
     m_Position: {x: 0, y: 0, z: 0}
     m_Rotation: {x: 0, y: 0, z: 0}
-    m_Scale: {x: 12, y: 4, z: 12}
+    m_Scale: {x: 16, y: 5, z: 16}
     placementMode: 0
     m_MeshMaterialIndex: 0
     m_MeshNormalOffset: 0
@@ -16871,7 +16969,7 @@ ParticleSystem:
     m_BurstCount: 0
     m_Bursts: []
   SizeModule:
-    enabled: 0
+    enabled: 1
     curve:
       serializedVersion: 2
       minMaxState: 1
@@ -16882,22 +16980,40 @@ ParticleSystem:
         m_Curve:
         - serializedVersion: 3
           time: 0
-          value: 0
+          value: 0.15
           inSlope: 0
-          outSlope: 1
-          tangentMode: 0
-          weightedMode: 0
-          inWeight: 0.33333334
-          outWeight: 0.33333334
-        - serializedVersion: 3
-          time: 1
-          value: 1
-          inSlope: 1
           outSlope: 0
           tangentMode: 0
           weightedMode: 0
-          inWeight: 0.33333334
-          outWeight: 0.33333334
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.22
+          value: 1
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 0.72
+          value: 0.9
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 1
+          value: 0.05
+          inSlope: 0
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
         m_PreInfinity: 2
         m_PostInfinity: 2
         m_RotationOrder: 4
@@ -17386,12 +17502,12 @@ ParticleSystem:
     flipU: 0
     flipV: 0
   VelocityModule:
-    enabled: 0
+    enabled: 1
     x:
       serializedVersion: 2
-      minMaxState: 0
-      scalar: 0
-      minScalar: 0
+      minMaxState: 3
+      scalar: 4.2
+      minScalar: 2.2
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -17442,9 +17558,9 @@ ParticleSystem:
         m_RotationOrder: 4
     y:
       serializedVersion: 2
-      minMaxState: 0
-      scalar: 0
-      minScalar: 0
+      minMaxState: 3
+      scalar: 0.25
+      minScalar: -0.15
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -17495,9 +17611,9 @@ ParticleSystem:
         m_RotationOrder: 4
     z:
       serializedVersion: 2
-      minMaxState: 0
-      scalar: 0
-      minScalar: 0
+      minMaxState: 3
+      scalar: 0.35
+      minScalar: -0.35
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -17970,7 +18086,7 @@ ParticleSystem:
         m_PreInfinity: 2
         m_PostInfinity: 2
         m_RotationOrder: 4
-    inWorldSpace: 0
+    inWorldSpace: 1
   InheritVelocityModule:
     enabled: 0
     m_Mode: 0
@@ -18580,12 +18696,12 @@ ParticleSystem:
         m_PostInfinity: 2
         m_RotationOrder: 4
   NoiseModule:
-    enabled: 0
+    enabled: 1
     strength:
       serializedVersion: 2
-      minMaxState: 0
-      scalar: 1
-      minScalar: 1
+      minMaxState: 3
+      scalar: 0.65
+      minScalar: 0.22
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -18741,7 +18857,7 @@ ParticleSystem:
         m_PostInfinity: 2
         m_RotationOrder: 4
     separateAxes: 0
-    frequency: 0.5
+    frequency: 0.18
     damping: 1
     octaves: 1
     octaveMultiplier: 0.5
@@ -18750,7 +18866,7 @@ ParticleSystem:
     scrollSpeed:
       serializedVersion: 2
       minMaxState: 0
-      scalar: 0
+      scalar: 0.22
       minScalar: 0
       maxCurve:
         serializedVersion: 2
@@ -20677,7 +20793,7 @@ ParticleSystemRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 10301, guid: 0000000000000000f000000000000000, type: 0}
+  - {fileID: 2100000, guid: 2016bba2bf63ab44a8c7107149605645, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -21250,17 +21366,18 @@ MonoBehaviour:
   zoneTextUIRoot: {fileID: 1894524718}
   introUIDuration: 3
   sandstormParticles: {fileID: 1823584550}
+  dustVignetteRenderer: {fileID: 145531173}
+  vignetteOverscan: 10
   maxEmissionRate: 300
   riseDuration: 3
   maxFogDensity: 0.12
+  sandstormFogColor: {r: 0.55, g: 0.45, b: 0.31, a: 1}
   windLoopSfx: {fileID: 0}
   windSfxVolume: 0.2
   guidingLightProvider: {fileID: 974055318}
   guidingLight: {fileID: 0}
   lightFadeDuration: 2
-  postClearWaypoints:
-  - {fileID: 141110498}
-  - {fileID: 265223904}
+  postClearWaypoints: []
   breathCircleUI: {fileID: 1390217919}
   instructionUIRoot: {fileID: 721584729}
   totalBreathLoops: 3

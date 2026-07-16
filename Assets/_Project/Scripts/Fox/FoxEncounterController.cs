@@ -229,6 +229,8 @@ public class FoxEncounterController : MonoBehaviour
         if (membraneObject != null) membraneObject.SetActive(true);
         SetMembraneAlpha(1f);
 
+        SoomAudioManager.Instance?.PlayFoxRevealSfx();
+
         SetPhaseIcon(GlassUIKit.IconCheck);
         ShowInstructionAndAction(RevealedInstruction, "불안의 막 제거");
     }
@@ -256,6 +258,8 @@ public class FoxEncounterController : MonoBehaviour
 
         SetMembraneAlpha(0f);
         if (membraneObject != null) Destroy(membraneObject);
+
+        SoomAudioManager.Instance?.PlayMembraneClearSfx();
 
         // 5.6 전용 지시문 문단은 없으므로 액션 버튼("동료 되기")만 노출한다.
         SetPhaseIcon(GlassUIKit.IconHeart);
@@ -315,12 +319,15 @@ public class FoxEncounterController : MonoBehaviour
         switch (CurrentPhase)
         {
             case EncounterPhase.Wary:
+                SoomAudioManager.Instance?.PlayInteractionSfx();
                 BeginFocusBreath();
                 break;
             case EncounterPhase.Revealed:
+                SoomAudioManager.Instance?.PlayInteractionSfx();
                 BeginMembraneBreath();
                 break;
             case EncounterPhase.Cleared:
+                SoomAudioManager.Instance?.PlayInteractionSfx();
                 BeginCompanion();
                 break;
             // 그 외 단계에서는 버튼이 보이지 않아야 하므로 무시한다.
